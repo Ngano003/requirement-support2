@@ -1,0 +1,12 @@
+streamlit
+networkx
+pydantic
+google-generativeai
+openai
+python-dotenv
+streamlit-agraph
+pypdf
+python-docx
+openpyxl
+pandas
+pytest
