@@ -38,16 +38,13 @@ class ManageProjectUseCase:
             input_files=[],
         )
         # Scan directory for initial files (simplified)
-        if os.path.exists(directory_path):
-            for root, _, files in os.walk(directory_path):
-                for file in files:
-                    if file.endswith((".md", ".txt", ".pdf", ".docx", ".xlsx")):
-                        # Store relative path or absolute? Using absolute for simplicity in V1 specific to local fs
-                        # But design says "Project-based". Let's stick to absolute for now or path relative to what?
-                        # Architecture says "Project-based config".
-                        # Let's assume input_files stores absolute paths for now as per `add_file` logic context.
-                        full_path = os.path.join(root, file)
-                        project.add_file(full_path)
+        # REMOVED: Do not auto-scan files. User must add them explicitly.
+        # if os.path.exists(directory_path):
+        #     for root, _, files in os.walk(directory_path):
+        #         for file in files:
+        #             if file.endswith((".md", ".txt", ".pdf", ".docx", ".xlsx")):
+        #                 full_path = os.path.join(root, file)
+        #                 project.add_file(full_path)
 
         self.repository.save(project)
         return project
@@ -62,6 +59,9 @@ class ManageProjectUseCase:
         project.add_file(file_path)
         self.repository.save(project)
         return project
+
+    def delete_project(self, project_id: ProjectId) -> None:
+        self.repository.delete(project_id)
 
 
 class AnalyzeRequirementsUseCase:
@@ -149,6 +149,7 @@ class AnalyzeRequirementsUseCase:
             except Exception as e:
                 if callback:
                     callback.on_log(f"Error reading {file_path}: {e}")
+                raise e
 
         # 2. Structural Analysis
         if callback:

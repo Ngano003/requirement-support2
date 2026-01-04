@@ -20,6 +20,10 @@ class ProjectRepository(ABC):
     def list_projects(self) -> List[Project]:
         pass
 
+    @abstractmethod
+    def delete(self, project_id: ProjectId) -> None:
+        pass
+
 
 class AnalysisProgressCallback(ABC):
     @abstractmethod

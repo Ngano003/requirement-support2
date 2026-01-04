@@ -37,9 +37,16 @@ class FileProjectRepository(ProjectRepository):
         with open(config_file, "r") as f:
             data = yaml.safe_load(f)
 
+        if not data or not isinstance(data, dict):
+            return None
+
         # Reconstruct object
         # Need to handle datetime parsing if yaml loaded as str, but Pydantic handles str -> datetime usually
-        return Project(**data)
+        try:
+            return Project(**data)
+        except Exception as e:
+            print(f"Error loading project {id}: {e}")
+            return None
 
     def save_result(self, project_id: ProjectId, result: AnalysisResult) -> None:
         project_path = self._get_project_path(project_id)
@@ -64,3 +71,10 @@ class FileProjectRepository(ProjectRepository):
             if project:
                 projects.append(project)
         return projects
+
+    def delete(self, project_id: ProjectId) -> None:
+        import shutil
+
+        project_path = self._get_project_path(project_id)
+        if os.path.exists(project_path):
+            shutil.rmtree(project_path)

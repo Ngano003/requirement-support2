@@ -2,6 +2,11 @@ import streamlit as st
 from streamlit_agraph import agraph, Node, Edge, Config
 import pandas as pd
 import os
+import sys
+
+# Perform path magic to ensure imports work when running from command line
+# Add the project root directory to sys.path
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from src.application.interfaces import AnalysisProgressCallback
 from src.infrastructure.repositories import FileProjectRepository
@@ -69,25 +74,54 @@ current_project_id = None
 if selected_project_name in project_options:
     current_project_id = project_options[selected_project_name]
 
+# Helper for directory picker
+import tkinter as tk
+from tkinter import filedialog
+
+
+def select_folder():
+    root = tk.Tk()
+    root.withdraw()
+    root.wm_attributes("-topmost", 1)
+    folder_path = filedialog.askdirectory()
+    root.destroy()
+    return folder_path
+
+
 if selected_project_name == "Create New...":
-    with st.sidebar.form("create_project_form"):
-        new_name = st.text_input("Project Name")
-        new_path = st.text_input("Directory Path", value=os.getcwd())
-        submitted = st.form_submit_button("Create")
-        if submitted and new_name and new_path:
-            p = controller.create_project(new_name, new_path)
-            st.sidebar.success(f"Created {p.name}")
+    st.sidebar.subheader("New Project Details")
+    new_name = st.sidebar.text_input("Project Name")
+
+    # Directory selection
+    if "new_project_path" not in st.session_state:
+        st.session_state["new_project_path"] = os.getcwd()
+
+    new_path = st.sidebar.text_input(
+        "Directory Path", value=st.session_state.get("new_project_path", os.getcwd())
+    )
+
+    # Wide layout for Browse button below input
+    if st.sidebar.button("Browse...", use_container_width=True):
+        selected = select_folder()
+        if selected:
+            st.session_state["new_project_path"] = selected
             st.rerun()
 
-# File Management
+    if st.sidebar.button("Create Project", type="primary", use_container_width=True):
+        if new_name and new_path:
+            p = controller.create_project(new_name, new_path)
+            st.sidebar.success(f"Created {p.name}")
+            # Clear state
+            if "new_project_path" in st.session_state:
+                del st.session_state["new_project_path"]
+            st.rerun()
+
+# File Management & Settings
 if current_project_id:
     st.sidebar.markdown("---")
     st.sidebar.subheader("Files")
 
-    # Retrieve project data to show files (need to fetch project object)
-    # Controller doesn't expose get_project directly in interface but we can use list_projects or add method
-    # For now, simplistic approach: re-fetch via list loop or add get_project to controller if needed.
-    # Actually list_projects returns Project objects.
+    # Retrieve project data
     current_project = next((p for p in projects if p.id == current_project_id), None)
 
     if current_project:
@@ -98,10 +132,6 @@ if current_project_id:
             "Add File", type=["md", "txt", "pdf", "docx", "xlsx"]
         )
         if uploaded_file:
-            # Save uploaded file to project dir provided by Repo?
-            # Design: "Arbitrary directory". "Upload or Load from directory".
-            # For upload, we should save it somewhere.
-            # V1: Save to project root/uploads
             uploads_dir = os.path.join("projects", str(current_project_id), "uploads")
             os.makedirs(uploads_dir, exist_ok=True)
             file_path = os.path.join(uploads_dir, uploaded_file.name)
@@ -110,6 +140,15 @@ if current_project_id:
 
             controller.add_file(current_project_id, file_path)
             st.sidebar.success(f"Added {uploaded_file.name}")
+            st.rerun()
+
+    # Project Settings (Deletion)
+    st.sidebar.markdown("---")
+    with st.sidebar.expander("Settings"):
+        if st.button("Delete Project", type="secondary"):
+            controller.delete_project(current_project_id)
+            st.sidebar.success("Project deleted.")
+            # Reset selection
             st.rerun()
 
 # --- Main Area ---
@@ -123,7 +162,22 @@ else:
         if st.button("Start Analyze", type="primary", use_container_width=True):
             progress_bar = st.progress(0)
             status_text = st.empty()
-            callback = UIProgressCallback(progress_bar, status_text)
+
+            # Log Container
+            log_expander = st.expander("Analysis Logs", expanded=True)
+            log_container = log_expander.empty()
+
+            # Custom Callback to update logs in real-time
+            class RealtimeLogCallback(UIProgressCallback):
+                def __init__(self, progress_bar, status_text, log_container):
+                    super().__init__(progress_bar, status_text)
+                    self.log_container = log_container
+
+                def on_log(self, message: str):
+                    super().on_log(message)
+                    self.log_container.text("\n".join(self.logs))
+
+            callback = RealtimeLogCallback(progress_bar, status_text, log_container)
 
             with st.spinner("Analyzing..."):
                 try:

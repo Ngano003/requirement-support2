@@ -22,5 +22,8 @@ class StreamlitController:
     def add_file(self, project_id: ProjectId, file_path: str):
         return self.manage_project_uc.add_file(project_id, file_path)
 
+    def delete_project(self, project_id: ProjectId):
+        return self.manage_project_uc.delete_project(project_id)
+
     def run_analysis(self, project_id: ProjectId, callback: AnalysisProgressCallback):
         return self.analyze_requirements_uc.execute(project_id, callback)

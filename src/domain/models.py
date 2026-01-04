@@ -4,8 +4,9 @@ from datetime import datetime
 from pydantic import BaseModel, Field
 
 # Value Objects
-ProjectId = NewType('ProjectId', str)
-NodeId = NewType('NodeId', str)
+ProjectId = NewType("ProjectId", str)
+NodeId = NewType("NodeId", str)
+
 
 # Enums
 class NodeType(str, Enum):
@@ -14,10 +15,12 @@ class NodeType(str, Enum):
     CONDITION = "condition"
     TERMINATOR = "terminator"
 
+
 class EdgeType(str, Enum):
     DEPENDS_ON = "depends_on"
     CONTRADICTS = "contradicts"
     REFINES = "refines"
+
 
 class DefectType(str, Enum):
     DEAD_END = "DeadEnd"
@@ -25,15 +28,19 @@ class DefectType(str, Enum):
     MISSING_ELSE = "MissingElse"
     CONFLICT = "Conflict"
 
+
 class Severity(str, Enum):
     HIGH = "High"
     MEDIUM = "Medium"
     LOW = "Low"
 
+
 # Entities
+
 
 class ProjectConfig(BaseModel):
     exclude_patterns: List[str] = Field(default_factory=list)
+
 
 class Project(BaseModel):
     id: ProjectId
@@ -53,6 +60,7 @@ class Project(BaseModel):
     def update_config(self, config: ProjectConfig) -> None:
         self.config = config
 
+
 class RequirementNode(BaseModel):
     id: NodeId
     content: str
@@ -61,16 +69,17 @@ class RequirementNode(BaseModel):
     line_number: int
     metadata: Dict[str, Any] = Field(default_factory=dict)
 
+
 class RequirementEdge(BaseModel):
     source_id: NodeId
     target_id: NodeId
     type: EdgeType
     attributes: Dict[str, Any] = Field(default_factory=dict)
 
-class RequirementGraph:
-    def __init__(self):
-        self.nodes: Dict[NodeId, RequirementNode] = {}
-        self.edges: List[RequirementEdge] = []
+
+class RequirementGraph(BaseModel):
+    nodes: Dict[NodeId, RequirementNode] = Field(default_factory=dict)
+    edges: List[RequirementEdge] = Field(default_factory=list)
 
     def add_node(self, node: RequirementNode) -> None:
         self.nodes[node.id] = node
@@ -93,9 +102,10 @@ class RequirementGraph:
         target_ids = {e.target_id for e in self.edges}
         connected_ids = source_ids.union(target_ids)
         return [n for n in self.nodes.values() if n.id not in connected_ids]
-    
+
     def to_networkx(self):
         import networkx as nx
+
         G = nx.DiGraph()
         for node in self.nodes.values():
             G.add_node(node.id, **node.model_dump())
@@ -103,12 +113,14 @@ class RequirementGraph:
             G.add_edge(edge.source_id, edge.target_id, **edge.model_dump())
         return G
 
+
 class Defect(BaseModel):
     type: DefectType
     severity: Severity
     related_node_ids: List[NodeId]
     description: str
     suggestion: Optional[str] = None
+
 
 class AnalysisResult(BaseModel):
     project_id: ProjectId
