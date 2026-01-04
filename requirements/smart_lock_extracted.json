@@ -1,0 +1,92 @@
+{
+  "project_name": "Smart Lock System",
+  "entities": [
+    {
+      "id": "entity_controller",
+      "name": "Controller",
+      "type": "hardware",
+      "states": [
+        {
+          "id": "state_idle",
+          "name": "施錠待機 (Idle)",
+          "description": "通常状態。LED消灯。",
+          "transitions": [
+            {
+              "trigger_id": "trigger_auth_success",
+              "target_state_id": "state_unlocked",
+              "output_ids": ["output_motor_unlock", "output_led_green"],
+              "constraint_ids": ["constraint_response_time"]
+            },
+            {
+              "trigger_id": "trigger_auth_fail",
+              "target_state_id": "state_idle",
+              "output_ids": ["output_buzzer_short_2"],
+              "constraint_ids": []
+            },
+            {
+              "trigger_id": "trigger_auth_fail_3_times",
+              "target_state_id": "state_lockout",
+              "output_ids": ["output_led_red_blink"],
+              "constraint_ids": []
+            },
+            {
+              "trigger_id": "trigger_voltage_critical",
+              "target_state_id": "state_shutdown",
+              "output_ids": [],
+              "constraint_ids": []
+            }
+          ]
+        },
+        {
+          "id": "state_unlocked",
+          "name": "解錠済み (Unlocked)",
+          "description": "解錠されている状態。",
+          "transitions": [
+            {
+              "trigger_id": "trigger_timeout_5s",
+              "target_state_id": "state_idle",
+              "output_ids": ["output_motor_lock"],
+              "constraint_ids": []
+            },
+            {
+              "trigger_id": "trigger_voltage_critical",
+              "target_state_id": "state_shutdown",
+              "output_ids": [],
+              "constraint_ids": []
+            }
+          ]
+        },
+        {
+          "id": "state_lockout",
+          "name": "セキュリティロック (Lockout)",
+          "description": "入力を受け付けない状態。",
+          "transitions": [
+            {
+              "trigger_id": "trigger_timeout_5min",
+              "target_state_id": "state_idle",
+              "output_ids": [],
+              "constraint_ids": []
+            },
+            {
+              "trigger_id": "trigger_voltage_critical",
+              "target_state_id": "state_shutdown",
+              "output_ids": [],
+              "constraint_ids": []
+            }
+          ]
+        },
+        {
+          "id": "state_shutdown",
+          "name": "停止 (Shutdown)",
+          "description": "電圧不足による停止。",
+          "transitions": []
+        }
+      ]
+    }
+  ],
+  "global_constraints": [
+    { "id": "constraint_response_time", "description": "PIN入力から200ms以内に駆動", "type": "performance" }
+  ],
+  "unbound_triggers": [],
+  "unbound_outputs": []
+}

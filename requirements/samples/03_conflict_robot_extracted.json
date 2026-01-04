@@ -1,0 +1,71 @@
+{
+    "project_name": "Industrial Robot Arm",
+    "entities": [
+        {
+            "id": "entity_robot",
+            "name": "Robot Arm",
+            "type": "hardware",
+            "states": [
+                {
+                    "id": "state_retracted",
+                    "name": "初期位置 (Retracted)",
+                    "transitions": [
+                        {
+                            "trigger_id": "trigger_move_cmd",
+                            "target_state_id": "state_approaching",
+                            "output_ids": [
+                                "output_rotate_right",
+                                "output_extend_arm"
+                            ],
+                            "constraint_ids": []
+                        }
+                    ]
+                },
+                {
+                    "id": "state_approaching",
+                    "name": "接近中 (Approaching)",
+                    "transitions": [
+                        {
+                            "trigger_id": "trigger_sensor_obstacle",
+                            "target_state_id": "state_emergency",
+                            "output_ids": [
+                                "output_retract_arm_emergency",
+                                "output_extend_arm_maintain"
+                            ],
+                            "constraint_ids": []
+                        }
+                    ]
+                },
+                {
+                    "id": "state_emergency",
+                    "name": "緊急回避 (Emergency)",
+                    "transitions": []
+                }
+            ]
+        }
+    ],
+    "defined_outputs": [
+        {
+            "id": "output_rotate_right",
+            "description": "ベースを右旋回",
+            "conflict_group": "base_rotation"
+        },
+        {
+            "id": "output_extend_arm",
+            "description": "アームを伸ばす",
+            "conflict_group": "arm_extension"
+        },
+        {
+            "id": "output_retract_arm_emergency",
+            "description": "アームを急速に縮める",
+            "conflict_group": "arm_extension"
+        },
+        {
+            "id": "output_extend_arm_maintain",
+            "description": "アーム伸長出力を維持(意図的な誤記述)",
+            "conflict_group": "arm_extension"
+        }
+    ],
+    "global_constraints": [],
+    "unbound_triggers": []
+}

@@ -1,0 +1,62 @@
+{
+    "project_name": "Server Room HVAC",
+    "entities": [
+        {
+            "id": "entity_thermostat",
+            "name": "Thermostat Controller",
+            "type": "hardware",
+            "states": [
+                {
+                    "id": "state_fan_only",
+                    "name": "送風 (FanOnly)",
+                    "transitions": [
+                        {
+                            "trigger_id": "trigger_start_cooling",
+                            "target_state_id": "state_cooling",
+                            "output_ids": [
+                                "output_compressor_on"
+                            ],
+                            "constraint_ids": []
+                        }
+                    ]
+                },
+                {
+                    "id": "state_cooling",
+                    "name": "冷却 (Cooling)",
+                    "transitions": [
+                        {
+                            "trigger_id": "trigger_stop_cooling",
+                            "target_state_id": "state_fan_only",
+                            "output_ids": [
+                                "output_compressor_off"
+                            ],
+                            "constraint_ids": []
+                        }
+                    ]
+                }
+            ]
+        }
+    ],
+    "defined_outputs": [
+        {
+            "id": "output_compressor_on",
+            "description": "コンプレッサーON",
+            "conflict_group": "compressor"
+        },
+        {
+            "id": "output_compressor_off",
+            "description": "コンプレッサーOFF",
+            "conflict_group": "compressor"
+        }
+    ],
+    "unbound_triggers": [
+        {
+            "id": "trigger_start_cooling",
+            "description": "Temp > 28.0"
+        },
+        {
+            "id": "trigger_stop_cooling",
+            "description": "Temp < 24.0"
+        }
+    ]
+}

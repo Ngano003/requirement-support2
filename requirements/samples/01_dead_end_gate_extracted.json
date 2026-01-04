@@ -1,0 +1,97 @@
+{
+    "project_name": "Automatic Gate",
+    "entities": [
+        {
+            "id": "entity_gate",
+            "name": "Gate Controller",
+            "type": "hardware",
+            "states": [
+                {
+                    "id": "state_idle",
+                    "name": "待機 (Idle)",
+                    "transitions": [
+                        {
+                            "trigger_id": "trigger_car_detected",
+                            "target_state_id": "state_authenticating",
+                            "output_ids": [],
+                            "constraint_ids": []
+                        },
+                        {
+                            "trigger_id": "trigger_maintenance_switch",
+                            "target_state_id": "state_maintenance",
+                            "output_ids": [
+                                "output_open_bar"
+                            ],
+                            "constraint_ids": []
+                        }
+                    ]
+                },
+                {
+                    "id": "state_authenticating",
+                    "name": "認証中 (Authenticating)",
+                    "transitions": [
+                        {
+                            "trigger_id": "trigger_auth_success",
+                            "target_state_id": "state_open",
+                            "output_ids": [
+                                "output_open_bar"
+                            ],
+                            "constraint_ids": []
+                        },
+                        {
+                            "trigger_id": "trigger_auth_fail",
+                            "target_state_id": "state_idle",
+                            "output_ids": [
+                                "output_buzzer"
+                            ],
+                            "constraint_ids": []
+                        },
+                        {
+                            "trigger_id": "trigger_maintenance_switch",
+                            "target_state_id": "state_maintenance",
+                            "output_ids": [
+                                "output_open_bar"
+                            ],
+                            "constraint_ids": []
+                        }
+                    ]
+                },
+                {
+                    "id": "state_maintenance",
+                    "name": "メンテナンス中 (Maintenance)",
+                    "transitions": [
+                        {
+                            "trigger_id": "trigger_sensor_error",
+                            "target_state_id": "state_error",
+                            "output_ids": [
+                                "output_red_light_blink"
+                            ],
+                            "constraint_ids": []
+                        }
+                    ]
+                },
+                {
+                    "id": "state_error",
+                    "name": "エラー停止 (Error)",
+                    "transitions": []
+                },
+                {
+                    "id": "state_open",
+                    "name": "通過待ち (Open)",
+                    "transitions": [
+                        {
+                            "trigger_id": "trigger_passed",
+                            "target_state_id": "state_idle",
+                            "output_ids": [
+                                "output_close_bar"
+                            ],
+                            "constraint_ids": []
+                        }
+                    ]
+                }
+            ]
+        }
+    ],
+    "defined_outputs": [],
+    "unbound_triggers": []
+}
