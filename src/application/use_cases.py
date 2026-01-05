@@ -33,13 +33,7 @@ class ManageProjectUseCase:
             config=ProjectConfig(),
             input_files=[],
         )
-        if os.path.exists(directory_path):
-            for root, _, files in os.walk(directory_path):
-                for file in files:
-                    if file.lower().endswith((".md", ".txt", ".pdf", ".docx", ".xlsx")):
-                        full_path = os.path.join(root, file)
-                        project.add_file(full_path)
-
+        # Auto-scan removed as per user request
         self.repository.save(project)
         return project
 

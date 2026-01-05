@@ -1,7 +1,9 @@
 import os
 import json
 import re
-from typing import Dict, Any, List
+import time
+import random
+from typing import Dict, Any, List, Callable
 from pathlib import Path
 from dotenv import load_dotenv
 
@@ -33,7 +35,6 @@ class LLMGatewayImpl(LLMGateway):
             )
 
         # Resolve prompt path
-        # Assuming src/infrastructure/llm_gateway.py -> ../../prompts
         self.prompt_path = (
             Path(__file__).parent.parent.parent
             / "prompts"
@@ -52,24 +53,6 @@ class LLMGatewayImpl(LLMGateway):
         response_text = self._call_llm_generic(prompt)
         return self._extract_json_block(response_text)
 
-    def extract_structure(self, text: str) -> Dict[str, Any]:
-        # Deprecated or Unused in new flow, but keeping empty or simplified if interface is strict?
-        # Interface was updated to ONLY have verify_requirements in previous step?
-        # Wait, I updated src/domain/interfaces.py in Step 116 to ONLY have verify_requirements.
-        # So I should remove this.
-        raise NotImplementedError("This method is deprecated.")
-
-    def verify_condition_exhaustiveness(
-        self, condition: str, outgoing_paths: List[str]
-    ) -> Dict[str, Any]:
-        raise NotImplementedError("This method is deprecated.")
-
-    def check_text_contradiction(self, text_a: str, text_b: str) -> Dict[str, Any]:
-        raise NotImplementedError("This method is deprecated.")
-
-    def call_llm_text(self, prompt: str) -> str:
-        return self._call_llm_generic(prompt)
-
     def _extract_json_block(self, text: str) -> dict:
         match = re.search(r"```json\n(.*?)\n```", text, re.DOTALL)
         if match:
@@ -85,31 +68,72 @@ class LLMGatewayImpl(LLMGateway):
         try:
             return json.loads(json_str)
         except json.JSONDecodeError:
-            # Return raw struct with error/empty
             return {"summary": "Error parsing LLM response", "defects": []}
 
-    def _call_llm_generic(self, prompt: str) -> str:
-        result_text = ""
-        try:
-            if self.provider == "google":
-                from google.genai import types
+    def _retry_with_backoff(
+        self, func: Callable, max_retries: int = 5, initial_delay: float = 2.0
+    ) -> str:
+        """
+        Executes a function with exponential backoff on exception.
+        """
+        delay = initial_delay
+        for attempt in range(max_retries):
+            try:
+                return func()
+            except Exception as e:
+                # Check for rate limit keywords if possible
+                error_msg = str(e).lower()
+                is_rate_limit = (
+                    "429" in error_msg
+                    or "quota" in error_msg
+                    or "rate limit" in error_msg
+                )
 
+                if attempt == max_retries - 1:
+                    print(f"Max retries reached. Last error: {e}")
+                    raise e
+
+                print(f"Request failed (Attempt {attempt+1}/{max_retries}): {e}")
+                print(f"Retrying in {delay:.2f} seconds...")
+
+                time.sleep(delay)
+                # Exponential backoff with jitter
+                delay = delay * 2 + random.uniform(0, 1)
+        return ""
+
+    def _call_llm_generic(self, prompt: str) -> str:
+        if self.provider == "google":
+
+            def call_google():
                 response = self.client.models.generate_content(
                     model=self.model_name,
                     contents=prompt,
-                    # config=types.GenerateContentConfig(response_mime_type="application/json"), # Prompt expects Markdown+JSON mixed output usually?
-                    # actually the prompt verify_requirements_llm.md expects JSON output block.
-                    # but let's be safe and just get text.
                 )
-                result_text = response.text
-            else:
+                return response.text
+
+            return self._retry_with_backoff(call_google)
+        else:
+
+            def call_openai():
                 response = self.client.chat.completions.create(
                     model=self.model_name,
                     messages=[{"role": "user", "content": prompt}],
                 )
-                result_text = response.choices[0].message.content
-        except Exception as e:
-            print(f"LLM Call failed: {e}")
-            raise e
+                return response.choices[0].message.content
 
-        return result_text
+            return self._retry_with_backoff(call_openai)
+
+    # Deprecated interface methods
+    def extract_structure(self, text: str) -> Dict[str, Any]:
+        raise NotImplementedError("This method is deprecated.")
+
+    def verify_condition_exhaustiveness(
+        self, condition: str, outgoing_paths: List[str]
+    ) -> Dict[str, Any]:
+        raise NotImplementedError("This method is deprecated.")
+
+    def check_text_contradiction(self, text_a: str, text_b: str) -> Dict[str, Any]:
+        raise NotImplementedError("This method is deprecated.")
+
+    def call_llm_text(self, prompt: str) -> str:
+        return self._call_llm_generic(prompt)

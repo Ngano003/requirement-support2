@@ -153,39 +153,53 @@ st.title("Requirements Verification AI")
 if not current_project_id:
     st.info("Please select or create a project to begin.")
 else:
-    col1, col2 = st.columns([3, 1])
-    with col2:
-        if st.button("Start Verification", type="primary", use_container_width=True):
-            progress_bar = st.progress(0)
-            status_text = st.empty()
+    # Get fresh project data to check file count
+    # Note: 'projects' variable at top might be stale if we relied on it,
+    # but st.rerun() refreshes it.
+    # However, to be safe, let's look at the 'current_project' we found in the sidebar loop
+    # (variable 'current_project' is defined in the sidebar block).
+    # Streamlit execution flow: sidebar runs first. So 'current_project' is available.
+    if current_project and not current_project.input_files:
+        st.warning(
+            "⚠️ No files in this project. Please add files using the sidebar before verifying."
+        )
+    else:
+        col1, col2 = st.columns([3, 1])
+        with col2:
+            if st.button(
+                "Start Verification", type="primary", use_container_width=True
+            ):
+                progress_bar = st.progress(0)
+                status_text = st.empty()
 
-            # Log Container
-            log_expander = st.expander("Verification Logs", expanded=True)
-            log_container = log_expander.empty()
+                # Log Container
+                log_expander = st.expander("Verification Logs", expanded=True)
+                log_container = log_expander.empty()
 
-            # Custom Callback to update logs in real-time
-            class RealtimeLogCallback(UIProgressCallback):
-                def __init__(self, progress_bar, status_text, log_container):
-                    super().__init__(progress_bar, status_text)
-                    self.log_container = log_container
+                # Custom Callback to update logs in real-time
+                class RealtimeLogCallback(UIProgressCallback):
+                    def __init__(self, progress_bar, status_text, log_container):
+                        super().__init__(progress_bar, status_text)
+                        self.log_container = log_container
 
-                def on_log(self, message: str):
-                    super().on_log(message)
-                    self.log_container.text("\n".join(self.logs))
+                    def on_log(self, message: str):
+                        super().on_log(message)
+                        self.log_container.text("\n".join(self.logs))
 
-            callback = RealtimeLogCallback(progress_bar, status_text, log_container)
+                callback = RealtimeLogCallback(progress_bar, status_text, log_container)
 
-            with st.spinner("Verifying..."):
-                try:
-                    result = controller.run_verification(current_project_id, callback)
-                    st.session_state["last_result"] = result
-                    st.session_state["logs"] = callback.logs
-                    st.success("Verification Complete!")
-                except Exception as e:
-                    st.error(f"Verification Failed: {e}")
-                    import traceback
-
-                    st.error(traceback.format_exc())
+                with st.spinner("Verifying..."):
+                    try:
+                        result = controller.run_verification(
+                            current_project_id, callback
+                        )
+                        st.session_state["last_result"] = result
+                        st.session_state["logs"] = callback.logs
+                        st.success("Verification Complete!")
+                    except Exception as e:
+                        st.error(f"Verification Failed: {e}")
+                        # import traceback
+                        # st.error(traceback.format_exc())
 
     if (
         "last_result" in st.session_state
