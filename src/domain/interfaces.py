@@ -10,3 +10,10 @@ class LLMGateway(ABC):
         Expected keys: summary, defects (list of dicts)
         """
         pass
+
+    @abstractmethod
+    def call_llm_with_system(self, system_prompt: str, user_prompt: str) -> str:
+        """
+        Call LLM with a system prompt and a user prompt.
+        """
+        pass

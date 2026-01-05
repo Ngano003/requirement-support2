@@ -140,3 +140,36 @@ class LLMGatewayImpl(LLMGateway):
 
     def call_llm_text(self, prompt: str) -> str:
         return self._call_llm_generic(prompt)
+
+    def call_llm_with_system(self, system_prompt: str, user_prompt: str) -> str:
+        if self.provider == "google":
+
+            def call_google():
+                # Gemini doesn't strictly have a "system" role in the same way as OpenAI in generate_content
+                # But we can use system_instruction if using the beta client or just prepend it.
+                # Since we are using genai.Client (Google Gen AI SDK v0.x or 1.x?), let's check init.
+                # The code uses genai.Client(api_key=...) which suggests the newer SDK.
+                # However, for simplicity and compatibility with the existing _call_llm_generic pattern:
+                # We will prepend the system prompt or use config if available.
+                # Actually, the simplest way for both providers that is robust:
+                full_prompt = f"System: {system_prompt}\n\nUser: {user_prompt}"
+                response = self.client.models.generate_content(
+                    model=self.model_name,
+                    contents=full_prompt,
+                )
+                return response.text
+
+            return self._retry_with_backoff(call_google)
+        else:
+
+            def call_openai():
+                response = self.client.chat.completions.create(
+                    model=self.model_name,
+                    messages=[
+                        {"role": "system", "content": system_prompt},
+                        {"role": "user", "content": user_prompt},
+                    ],
+                )
+                return response.choices[0].message.content
+
+            return self._retry_with_backoff(call_openai)

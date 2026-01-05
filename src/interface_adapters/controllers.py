@@ -1,5 +1,9 @@
 from src.domain.models import ProjectId
-from src.application.use_cases import VerifyRequirementsUseCase, ManageProjectUseCase
+from src.application.use_cases import (
+    VerifyRequirementsUseCase,
+    ManageProjectUseCase,
+    BreakdownUseCase,
+)
 from src.application.interfaces import AnalysisProgressCallback
 
 
@@ -8,9 +12,11 @@ class StreamlitController:
         self,
         manage_project_uc: ManageProjectUseCase,
         verify_requirements_uc: VerifyRequirementsUseCase,
+        breakdown_uc: BreakdownUseCase = None,
     ):
         self.manage_project_uc = manage_project_uc
         self.verify_requirements_uc = verify_requirements_uc
+        self.breakdown_uc = breakdown_uc
 
     def get_all_projects(self):
         return self.manage_project_uc.list_projects()

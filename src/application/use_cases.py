@@ -187,3 +187,20 @@ class VerifyRequirementsUseCase:
             report += "---\n\n"
 
         return report
+
+
+class BreakdownUseCase:
+    def __init__(self, service):
+        self.service = service
+
+    def start_session(self, input_text: str):
+        return self.service.initialize_session(input_text)
+
+    def answer_question(self, session_data, question_id, answer):
+        return self.service.process_answer(session_data, question_id, answer)
+
+    def update_requirements(self, session_data):
+        return self.service.update_requirements(session_data)
+
+    def generate_questions(self, session_data):
+        return self.service.generate_next_questions(session_data)
