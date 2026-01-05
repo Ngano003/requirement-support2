@@ -54,6 +54,9 @@ class LLMGatewayImpl(LLMGateway):
         return self._extract_json_block(response_text)
 
     def _extract_json_block(self, text: str) -> dict:
+        # Remove <think> blocks (often from reasoning models)
+        text = re.sub(r"<think>.*?</think>", "", text, flags=re.DOTALL)
+
         match = re.search(r"```json\n(.*?)\n```", text, re.DOTALL)
         if match:
             json_str = match.group(1)
