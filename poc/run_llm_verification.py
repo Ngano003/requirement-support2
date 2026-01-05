@@ -13,9 +13,17 @@ from src.infrastructure.llm_gateway import LLMGatewayImpl
 
 # Configuration
 REQ_FILE_PATHS = [
-    project_root / "doc" / "samples" / "01_agv_core_logic.md",
-    project_root / "doc" / "samples" / "02_agv_communication.md",
-    project_root / "doc" / "samples" / "03_agv_hardware_safety.md",
+    project_root / "requirements" / "samples" / "agv_system" / "01_agv_core_logic.md",
+    project_root
+    / "requirements"
+    / "samples"
+    / "agv_system"
+    / "02_agv_communication.md",
+    project_root
+    / "requirements"
+    / "samples"
+    / "agv_system"
+    / "03_agv_hardware_safety.md",
 ]
 PROMPT_PATH = project_root / "prompts" / "verify_requirements_llm.md"
 REPORT_PATH = project_root / "poc" / "llm_verification_report.md"

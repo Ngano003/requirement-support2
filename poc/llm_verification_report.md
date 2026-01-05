@@ -1,157 +1,170 @@
 # LLM要件検証レポート
 
-**実行日時**: 2026-01-05 22:48:09
+**実行日時**: 2026-01-05 23:02:19
 **対象ファイル**: 01_agv_core_logic.md, 02_agv_communication.md, 03_agv_hardware_safety.md
 
 ## エグゼクティブサマリー
-要件定義書に対し、状態の脱出欠如や条件未網羅、リソース解放漏れ、タイミング不整合など複数の欠陥を特定。特に SafeMode の出口未定義や速度監視のタイムライン違反は致命的で、修正が必須。
+要件定義書に複数の状態遷移抜けや条件未網羅、リソース解放漏れ、タイミング矛盾などが散見され、特に SafeMode の脱出経路欠如や速度監視の実装制約が致命的です。
 
 | Critical | Major | Minor | Total |
 | :---: | :---: | :---: | :---: |
-| 4 | 4 | 3 | 11 |
+| 5 | 6 | 1 | 12 |
 
 ## 検出された欠陥一覧
 
 ### 🔴 [DEF-001] Dead Ends
 
 **Severity**: Critical
-**Location**: 4.2.14 SafeMode entry (State SafeMode) – No outgoing transition defined
+**Location**: 4.2.14 Error -> SafeMode
 
 **Description**:
-SafeMode 状態への遷移は定義されているが、SafeMode から他の状態へ戻る遷移が全く記載されていない。バッテリが回復しても復帰できず、システムが永久停止する可能性がある。
+SafeMode に遷移した後、状態から抜け出す遷移が定義されていない。バッテリが回復したり、外部から復旧指示が来てもシステムは永続的に停止したままになる。
 
 **Recommendation**:
-SafeMode から Idle へ復帰する条件と遷移（例: バッテリ > 20% かつ通信復帰）を明示し、復帰手順を実装する。
+SafeMode からの復帰遷移を追加し、例: SafeMode -> Idle (条件: バッテリ > 20% かつ Wi‑Fi 復帰) を規定する。
 
 ---
 
 ### 🔴 [DEF-002] Dead Ends
 
 **Severity**: Critical
-**Location**: 4.2.11 Global -> Error (State Error) – No generic recovery path
+**Location**: 4.2.2 Idle -> Moving / 4.2.3 Moving -> Paused
 
 **Description**:
-Error 状態はどの状態からでも遷移可能だが、Error から通常運転へ戻る一般的な遷移が記載されていない。手動スイッチで Maintenance に遷移するケースしかなく、ソフトウェアだけで復旧できない。
+Moving 状態でバッテリ残量が 20% 未満になるケースの遷移が未定義。低バッテリ時に走行を続行できず、充電ステーションへ戻れないまま停止する可能性がある。
 
 **Recommendation**:
-Error から Idle へ復帰するフロー（例: エラーフラグクリア後の自動遷移）を追加し、手動介入不要のリカバリを提供する。
+Moving -> Charging もしくは Moving -> Paused (低バッテリ) の遷移を追加し、条件を明示する。
 
 ---
 
 ### 🟠 [DEF-003] Missing Else
 
 **Severity**: Major
-**Location**: 4.2.2 Idle -> Moving (Battery > 20% 条件)
+**Location**: 4.2.2 Idle -> Moving (バッテリ残量条件)
 
 **Description**:
-Idle から Moving への遷移はバッテリ残量 >20% が必要とされているが、20% 以下の場合の動作が未定義。低バッテリ時にタスクが割り当てられた場合の挙動が不明。
+バッテリ残量 > 20% が条件だが、正確に 20% の場合の挙動が未定義。境界値での動作が不明確になる。
 
 **Recommendation**:
-バッテリ ≤20% の場合は自動的に Charging へ遷移、またはタスク受入れを拒否するロジックを明記する。
+条件を ">= 20%" と明記し、境界値の処理を統一する。
 
 ---
 
 ### 🟠 [DEF-004] Missing Else
 
 **Severity**: Major
-**Location**: 4.2.6 Loading -> Moving (荷物センサー ON 条件)
+**Location**: 4.2.3 Moving -> Paused / 4.2.4 Paused -> Moving
 
 **Description**:
-荷物センサーが OFF のまま Loading から Moving へ遷移するケースが未定義。荷積み失敗時にシステムが無限に Loading に留まる恐れがある。
+障害物検知距離の閾値が <1.0m と >1.2m で分かれており、1.0〜1.2m の範囲が未定義。実際のセンサー誤差でこの領域に入ると状態遷移が起きない。
 
 **Recommendation**:
-荷物センサーが OFF の場合は Error (E_102) へ遷移し、リトライまたは手動介入フローを追加する。
+中間帯域のハンドリングを追加し、例: 1.0‑1.2m は "警告" 状態 (Paused) に遷移させるか、ヒステリシスを導入する。
 
 ---
 
-### 🟠 [DEF-005] Missing Else
+### 🟠 [DEF-005] Orphan States
 
 **Severity**: Major
-**Location**: 4.2.10 Charging -> Idle (SOC > 95% 条件)
+**Location**: 4.3 Loading Sub‑states
 
 **Description**:
-充電完了条件が SOC > 95% のみで、95% 以下での遷移が未定義。充電が途中で停止した場合に状態が停滞する可能性がある。
+Loading のサブステート L_Approach, L_Handshake, L_Transfer, L_Verify が列挙されているが、相互遷移やエラーハンドリングが記載されていない。実装時に遷移ロジックが不明になる。
 
 **Recommendation**:
-SOC が 95% 未満の場合は Charging 状態に留まること、もしくはタイムアウトで Error へ遷移する旨を明記する。
+各サブステート間の遷移図と、失敗時のフォールバック (例: L_Transfer 失敗 → L_Handshake 再試行) を明示する。
 
 ---
 
-### 🔵 [DEF-006] Orphan States
+### 🟠 [DEF-006] Orphan States
 
-**Severity**: Minor
-**Location**: 5.5 診断モード (Diagnostic Mode) – 5.1.5
+**Severity**: Major
+**Location**: 5.1 診断モード (Hardware Spec)
 
 **Description**:
-診断モードへの遷移手順はハードウェアレベルで記載されているが、メインステートマシンからこのモードへ遷移するトリガーが存在しない。通常運転中に診断モードへ入れない。
+診断モードへの遷移手順がハードウェア文書に記載されているが、状態機械 (Part 1) から到達できる遷移が存在しない。運用上、ソフトウェアから診断モードへ入れない。
 
 **Recommendation**:
-メインステートマシンに「Diagnostic」状態を追加し、Maintenance からの遷移や手動スイッチでの遷移を定義する。
+状態機械に "Maintenance -> Diagnostic" もしくは "Error -> Diagnostic" の遷移を追加し、手順と条件を統合する。
 
 ---
 
-### 🔵 [DEF-007] Conflicting Outputs
+### 🟠 [DEF-007] Conflicting Outputs
 
-**Severity**: Minor
-**Location**: 2.2.5 CMD_EMERGENCY_STOP と 4.2.2/4.2.5 の LED 制御
+**Severity**: Major
+**Location**: 2.2.5 CMD_EMERGENCY_STOP と 4.2.3/4.2.4 Paused 状態
 
 **Description**:
-緊急停止コマンドは LED を RED_BLINK に設定するが、タスク実行中は LED が BLUE_ROTATE になる旨が規定されている。両方が同時に有効になると表示が競合し、オペレーターが状態を判断できない。
+緊急停止時に LED を RED_BLINK に設定するが、障害物検知で Paused 状態になると LED を YELLOW_BLINK に設定する。両方が同時に有効になると表示が競合し、オペレーターが状態を判別できない。
 
 **Recommendation**:
-LED 表示の優先順位を明示し、緊急停止時は全ての他の LED パターンを上書きすることを規定する。
+LED 制御の優先順位を定義し、緊急停止が最上位 (RED_BLINK) になるように設計する。
 
 ---
 
 ### 🟠 [DEF-008] Unstated Side Effects
 
 **Severity**: Major
-**Location**: 3.1 交差点・排他制御フロー – REQ_ACQUIRE_RESOURCE / REQ_RELEASE_RESOURCE
+**Location**: 3.2 交差点・排他制御フロー (Communication Spec)
 
 **Description**:
-リソース取得後にエラーやキャンセルが発生した場合、リソース解放 (REQ_RELEASE_RESOURCE) が必ず実行される保証が記載されていない。リソースがロックされたまま残り、他 AGV が交差点に進入できなくなるデッドロックのリスクがある。
+AGV が REQ_ACQUIRE_RESOURCE を送信した後、エラーやタイムアウトが発生した場合に REQ_RELEASE_RESOURCE が必ず送られる保証がない。リソースが解放されず、他AGV が交差点に進入できなくなるデッドロックのリスクがある。
 
 **Recommendation**:
-エラー発生時やタスク中止時に自動的に REQ_RELEASE_RESOURCE を送信するフローを追加し、FMS 側でもタイムアウト解放機構を実装する。
+エラー・タイムアウト時のリリースフローを明記し、FMS が自動的にリソースを回収するタイムアウト機構を追加する。
 
 ---
 
 ### 🔴 [DEF-009] Timing Violation
 
 **Severity**: Critical
-**Location**: 2.3 速度監視ロジック – Req.Safe.005
+**Location**: 2.3.1 速度監視ロジック (Hardware Spec)
 
 **Description**:
-速度超過検知は 100 ms 以内に非常停止を作動させると規定されているが、センサ周期 50 ms、4サンプル移動平均で 200 ms の遅延、さらにリレー遮断遅延 20 ms が加わり、合計で 270 ms となり要件を満たさない。
+速度超過検知は 4 サンプル (200 ms) の移動平均を使用し、検知後 100 ms 以内に非常停止を作動させる必要があるが、フィルタ遅延だけで 200 ms 超えるため実装不可能。
 
 **Recommendation**:
-フィルタ遅延を削減する（例: 2サンプル平均）か、要求時間を 300 ms 以上に緩和し、ハードウェア側の遮断遅延を 20 ms 未満に改善する。
+フィルタ遅延を削減するか、許容停止遅延を 300 ms 以上に緩和し、要件と実装を整合させる。
 
 ---
 
-### 🔵 [DEF-010] Ambiguous Terms
+### 🔴 [DEF-010] Timing Violation
 
-**Severity**: Minor
-**Location**: 3.1 用語定義 と 2.3 通信プロトコル – Task / Transport Order
+**Severity**: Critical
+**Location**: 2.2.5 CMD_EMERGENCY_STOP (Communication Spec)
 
 **Description**:
-「搬送指示」は Event_Transport_Order と CMD_TASK_ASSIGN の二つで表現されており、同一概念なのか別物なのかが不明瞭。ドキュメント全体で用語が統一されていない。
+緊急停止は MQTT QoS 1 で送信されるが、QoS 1 は再送や ACK 待ちが発生し、数百ミリ秒以上の遅延が起こり得る。安全上、即時停止が求められる場面で遅延は許容できない。
 
 **Recommendation**:
-「Task」または「Transport Order」のいずれかに統一し、用語集に明確な定義を追加する。
+緊急停止は別途 UDP ベースのリアルタイムチャネル、または物理的 E‑Stop 回路と直接連携させ、遅延を 10 ms 以下に抑える。
 
 ---
 
 ### 🔴 [DEF-011] Cycles
 
 **Severity**: Critical
-**Location**: 3.1 交差点・排他制御フロー – REQ_ACQUIRE_RESOURCE と 4.2.11 Global -> Error
+**Location**: 3.2 交差点・排他制御フロー
 
 **Description**:
-AGV がリソース取得中に Critical Error が発生すると Error 状態へ遷移し、リソース解放が未定義になる。その結果、FMS がリソースを解放できず、他 AGV が待ち続けてデッドロックになる可能性がある。
+複数 AGV が同時に同一交差点の Entry Node で REQ_ACQUIRE_RESOURCE を送信し、FMS が先着順で Grant しない場合、相互にリソース取得待ちでデッドロックになる可能性がある。
 
 **Recommendation**:
-Error 状態遷移時に自動的に REQ_RELEASE_RESOURCE を送信するか、FMS が一定時間経過後にリソースを強制解放するロジックを追加する。
+FMS に公平な排他制御アルゴリズム（例: トークンリングまたはタイムアウト付きキュー）を規定し、取得失敗時のリトライバックオフを明示する。
+
+---
+
+### 🔵 [DEF-012] Ambiguous Terms
+
+**Severity**: Minor
+**Location**: 全体
+
+**Description**:
+"SOC"、"バッテリ残量"、"バッテリ電圧" が混在し定義が不統一。また "オペレーター" と "Operator" が文書内で混在し、読者が同一人物を指すか判断できない。
+
+**Recommendation**:
+用語集に SOC (State Of Charge) を明示し、バッテリ関連は統一した表記に統一する。日本語表記は "オペレーター" に統一し、英語表記は別途 Glossary として併記する。
 
 ---
 
