@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 from typing import List, Optional
-from src.domain.models import Project, ProjectId, AnalysisResult
+from src.domain.models import Project, ProjectId, VerificationResult
 
 
 class ProjectRepository(ABC):
@@ -13,7 +13,7 @@ class ProjectRepository(ABC):
         pass
 
     @abstractmethod
-    def save_result(self, project_id: ProjectId, result: AnalysisResult) -> None:
+    def save_result(self, project_id: ProjectId, result: VerificationResult) -> None:
         pass
 
     @abstractmethod

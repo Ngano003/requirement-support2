@@ -1,6 +1,5 @@
-from typing import Dict
 from src.domain.models import ProjectId
-from src.application.use_cases import AnalyzeRequirementsUseCase, ManageProjectUseCase
+from src.application.use_cases import VerifyRequirementsUseCase, ManageProjectUseCase
 from src.application.interfaces import AnalysisProgressCallback
 
 
@@ -8,10 +7,10 @@ class StreamlitController:
     def __init__(
         self,
         manage_project_uc: ManageProjectUseCase,
-        analyze_requirements_uc: AnalyzeRequirementsUseCase,
+        verify_requirements_uc: VerifyRequirementsUseCase,
     ):
         self.manage_project_uc = manage_project_uc
-        self.analyze_requirements_uc = analyze_requirements_uc
+        self.verify_requirements_uc = verify_requirements_uc
 
     def get_all_projects(self):
         return self.manage_project_uc.list_projects()
@@ -25,5 +24,7 @@ class StreamlitController:
     def delete_project(self, project_id: ProjectId):
         return self.manage_project_uc.delete_project(project_id)
 
-    def run_analysis(self, project_id: ProjectId, callback: AnalysisProgressCallback):
-        return self.analyze_requirements_uc.execute(project_id, callback)
+    def run_verification(
+        self, project_id: ProjectId, callback: AnalysisProgressCallback
+    ):
+        return self.verify_requirements_uc.execute(project_id, callback)

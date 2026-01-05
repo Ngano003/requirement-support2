@@ -1,5 +1,4 @@
 import streamlit as st
-from streamlit_agraph import agraph, Node, Edge, Config
 import pandas as pd
 import os
 import sys
@@ -12,13 +11,11 @@ from src.application.interfaces import AnalysisProgressCallback
 from src.infrastructure.repositories import FileProjectRepository
 from src.infrastructure.llm_gateway import LLMGatewayImpl
 from src.infrastructure.file_converter import FileConverter
-from src.domain.services import GraphAnalysisService, SemanticAnalysisService
-from src.application.use_cases import ManageProjectUseCase, AnalyzeRequirementsUseCase
+from src.application.use_cases import ManageProjectUseCase, VerifyRequirementsUseCase
 from src.interface_adapters.controllers import StreamlitController
 from src.interface_adapters.presenters import ResultPresenter
-from src.domain.models import ProjectId
 
-st.set_page_config(layout="wide", page_title="Requirements Review AI")
+st.set_page_config(layout="wide", page_title="Requirements Verification AI")
 
 
 # --- Dependency Injection ---
@@ -27,15 +24,11 @@ def get_controller():
     repo = FileProjectRepository(root_dir=os.getcwd())
     llm = LLMGatewayImpl()
     file_provider = FileConverter()
-    graph_service = GraphAnalysisService()
-    semantic_service = SemanticAnalysisService(llm)
 
     manage_uc = ManageProjectUseCase(repo)
-    analyze_uc = AnalyzeRequirementsUseCase(
-        repo, llm, graph_service, semantic_service, file_provider
-    )
+    verify_uc = VerifyRequirementsUseCase(repo, llm, file_provider)
 
-    return StreamlitController(manage_uc, analyze_uc)
+    return StreamlitController(manage_uc, verify_uc)
 
 
 controller = get_controller()
@@ -80,12 +73,15 @@ from tkinter import filedialog
 
 
 def select_folder():
-    root = tk.Tk()
-    root.withdraw()
-    root.wm_attributes("-topmost", 1)
-    folder_path = filedialog.askdirectory()
-    root.destroy()
-    return folder_path
+    try:
+        root = tk.Tk()
+        root.withdraw()
+        root.wm_attributes("-topmost", 1)
+        folder_path = filedialog.askdirectory()
+        root.destroy()
+        return folder_path
+    except Exception:
+        return None
 
 
 if selected_project_name == "Create New...":
@@ -152,19 +148,19 @@ if current_project_id:
             st.rerun()
 
 # --- Main Area ---
-st.title("Requirements Review AI")
+st.title("Requirements Verification AI")
 
 if not current_project_id:
     st.info("Please select or create a project to begin.")
 else:
     col1, col2 = st.columns([3, 1])
     with col2:
-        if st.button("Start Analyze", type="primary", use_container_width=True):
+        if st.button("Start Verification", type="primary", use_container_width=True):
             progress_bar = st.progress(0)
             status_text = st.empty()
 
             # Log Container
-            log_expander = st.expander("Analysis Logs", expanded=True)
+            log_expander = st.expander("Verification Logs", expanded=True)
             log_container = log_expander.empty()
 
             # Custom Callback to update logs in real-time
@@ -179,14 +175,14 @@ else:
 
             callback = RealtimeLogCallback(progress_bar, status_text, log_container)
 
-            with st.spinner("Analyzing..."):
+            with st.spinner("Verifying..."):
                 try:
-                    result = controller.run_analysis(current_project_id, callback)
+                    result = controller.run_verification(current_project_id, callback)
                     st.session_state["last_result"] = result
                     st.session_state["logs"] = callback.logs
-                    st.success("Analysis Complete!")
+                    st.success("Verification Complete!")
                 except Exception as e:
-                    st.error(f"Analysis Failed: {e}")
+                    st.error(f"Verification Failed: {e}")
                     import traceback
 
                     st.error(traceback.format_exc())
@@ -198,32 +194,24 @@ else:
         result = st.session_state["last_result"]
 
         # Dashboard Cards
-        m = result.metrics
-        c1, c2, c3 = st.columns(3)
-        c1.metric("Nodes", m.get("node_count"))
-        c2.metric("Edges", m.get("edge_count"))
-        c3.metric("Defects", len(result.defects))
+        c1, c2 = st.columns(2)
+        c1.metric("Total Defects", len(result.defects))
 
-        tab1, tab2, tab3 = st.tabs(["Visualization", "Defects", "Logs"])
+        # Count by severity
+        critical = sum(1 for d in result.defects if d.severity == "Critical")
+        c2.metric("Critical Defects", critical)
+
+        tab1, tab2, tab3 = st.tabs(["Report", "Defect List", "Logs"])
 
         with tab1:
-            graph_data = presenter.present_graph(result.graph)
-            # Agraph
-            nodes = [Node(**n["data"], **n["style"]) for n in graph_data["nodes"]]
-            edges = [Edge(**e["data"], **e["style"]) for e in graph_data["edges"]]
-
-            config = Config(
-                width=800,
-                height=600,
-                directed=True,
-                nodeHighlightBehavior=True,
-                highlightColor="#F7A7A6",
-            )
-            agraph(nodes=nodes, edges=edges, config=config)
+            st.markdown(result.raw_report)
 
         with tab2:
-            df = presenter.present_defects(result.defects)
-            st.dataframe(df, use_container_width=True)
+            if result.defects:
+                df = presenter.present_defects(result.defects)
+                st.dataframe(df, use_container_width=True)
+            else:
+                st.info("No defects found.")
 
         with tab3:
             st.text_area(

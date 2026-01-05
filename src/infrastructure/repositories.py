@@ -4,7 +4,7 @@ import json
 from datetime import datetime
 from typing import List, Optional
 
-from src.domain.models import Project, ProjectId, AnalysisResult, ProjectConfig
+from src.domain.models import Project, ProjectId, VerificationResult, ProjectConfig
 from src.application.interfaces import ProjectRepository
 
 
@@ -41,14 +41,13 @@ class FileProjectRepository(ProjectRepository):
             return None
 
         # Reconstruct object
-        # Need to handle datetime parsing if yaml loaded as str, but Pydantic handles str -> datetime usually
         try:
             return Project(**data)
         except Exception as e:
             print(f"Error loading project {id}: {e}")
             return None
 
-    def save_result(self, project_id: ProjectId, result: AnalysisResult) -> None:
+    def save_result(self, project_id: ProjectId, result: VerificationResult) -> None:
         project_path = self._get_project_path(project_id)
         reports_dir = os.path.join(project_path, "reports")
 
@@ -57,9 +56,15 @@ class FileProjectRepository(ProjectRepository):
         report_dir = os.path.join(reports_dir, ts_str)
         os.makedirs(report_dir, exist_ok=True)
 
+        # Save JSON
         result_file = os.path.join(report_dir, "result.json")
-        with open(result_file, "w") as f:
+        with open(result_file, "w", encoding="utf-8") as f:
             f.write(result.model_dump_json(indent=2))
+
+        # Save Markdown Report
+        report_file = os.path.join(report_dir, "report.md")
+        with open(report_file, "w", encoding="utf-8") as f:
+            f.write(result.raw_report)
 
     def list_projects(self) -> List[Project]:
         projects = []

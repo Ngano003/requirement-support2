@@ -5,34 +5,24 @@ from pydantic import BaseModel, Field
 
 # Value Objects
 ProjectId = NewType("ProjectId", str)
-NodeId = NewType("NodeId", str)
 
 
 # Enums
-class NodeType(str, Enum):
-    ACTOR = "actor"
-    ACTION = "action"
-    CONDITION = "condition"
-    TERMINATOR = "terminator"
-
-
-class EdgeType(str, Enum):
-    DEPENDS_ON = "depends_on"
-    CONTRADICTS = "contradicts"
-    REFINES = "refines"
-
-
-class DefectType(str, Enum):
-    DEAD_END = "DeadEnd"
-    CYCLE = "Cycle"
-    MISSING_ELSE = "MissingElse"
-    CONFLICT = "Conflict"
+class DefectCategory(str, Enum):
+    DEAD_ENDS = "Dead Ends"
+    MISSING_ELSE = "Missing Else"
+    ORPHAN_STATES = "Orphan States"
+    CONFLICTING_OUTPUTS = "Conflicting Outputs"
+    UNSTATED_SIDE_EFFECTS = "Unstated Side Effects"
+    TIMING_VIOLATION = "Timing Violation"
+    CYCLES = "Cycles"
+    AMBIGUOUS_TERMS = "Ambiguous Terms"
 
 
 class Severity(str, Enum):
-    HIGH = "High"
-    MEDIUM = "Medium"
-    LOW = "Low"
+    CRITICAL = "Critical"
+    MAJOR = "Major"
+    MINOR = "Minor"
 
 
 # Entities
@@ -40,6 +30,7 @@ class Severity(str, Enum):
 
 class ProjectConfig(BaseModel):
     exclude_patterns: List[str] = Field(default_factory=list)
+    description: Optional[str] = None
 
 
 class Project(BaseModel):
@@ -61,76 +52,21 @@ class Project(BaseModel):
         self.config = config
 
 
-class RequirementNode(BaseModel):
-    id: NodeId
-    content: str
-    type: NodeType
-    source_file: str
-    line_number: int
-    metadata: Dict[str, Any] = Field(default_factory=dict)
-
-
-class RequirementEdge(BaseModel):
-    source_id: NodeId
-    target_id: NodeId
-    type: EdgeType
-    attributes: Dict[str, Any] = Field(default_factory=dict)
-
-
-class RequirementGraph(BaseModel):
-    nodes: Dict[NodeId, RequirementNode] = Field(default_factory=dict)
-    edges: List[RequirementEdge] = Field(default_factory=list)
-
-    def add_node(self, node: RequirementNode) -> None:
-        self.nodes[node.id] = node
-
-    def add_edge(self, edge: RequirementEdge) -> None:
-        if edge.source_id not in self.nodes:
-            raise ValueError(f"Source node {edge.source_id} does not exist")
-        if edge.target_id not in self.nodes:
-            raise ValueError(f"Target node {edge.target_id} does not exist")
-        self.edges.append(edge)
-
-    def get_outgoing_edges(self, node_id: NodeId) -> List[RequirementEdge]:
-        return [e for e in self.edges if e.source_id == node_id]
-
-    def get_incoming_edges(self, node_id: NodeId) -> List[RequirementEdge]:
-        return [e for e in self.edges if e.target_id == node_id]
-
-    def get_orphans(self) -> List[RequirementNode]:
-        source_ids = {e.source_id for e in self.edges}
-        target_ids = {e.target_id for e in self.edges}
-        connected_ids = source_ids.union(target_ids)
-        return [n for n in self.nodes.values() if n.id not in connected_ids]
-
-    def to_networkx(self):
-        import networkx as nx
-
-        G = nx.DiGraph()
-        for node in self.nodes.values():
-            G.add_node(node.id, **node.model_dump())
-        for edge in self.edges:
-            G.add_edge(edge.source_id, edge.target_id, **edge.model_dump())
-        return G
-
-
 class Defect(BaseModel):
-    type: DefectType
+    id: str
+    category: DefectCategory
     severity: Severity
-    related_node_ids: List[NodeId]
+    location: str
     description: str
-    suggestion: Optional[str] = None
+    recommendation: str
 
 
-class AnalysisResult(BaseModel):
+class VerificationResult(BaseModel):
     project_id: ProjectId
     timestamp: datetime
-    graph: RequirementGraph
+    summary: str
     defects: List[Defect]
-    metrics: Dict[str, float]
+    raw_report: str  # Markdown report content
 
     class Config:
         arbitrary_types_allowed = True
-
-    def has_critical_defects(self) -> bool:
-        return any(d.severity == Severity.HIGH for d in self.defects)
