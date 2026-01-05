@@ -1,0 +1,16 @@
+# Git
+.git
+.gitignore
+
+# Python
+__pycache__
+.venv/
+*.pyc
+
+# IDE / Editor
+.vscode
+.idea
+
+# Temporary files
+alloy_temp/
+*.log
