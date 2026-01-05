@@ -15,23 +15,22 @@ class LLMGatewayImpl(LLMGateway):
     def __init__(self):
         self.google_api_key = os.getenv("GOOGLE_API_KEY")
         self.openai_api_key = os.getenv("OPENAI_API_KEY")
+        self.openai_base_url = os.getenv("OPENAI_BASE_URL")
 
         # Default to google if key exists, otherwise openai, unless explicitly set
         default_provider = "google" if self.google_api_key else "openai"
         self.provider = os.getenv("LLM_PROVIDER", default_provider).lower()
 
-        self.model_name = os.getenv("LLM_MODEL")
-
         if self.provider == "google":
-            if not self.model_name:
-                self.model_name = "gemini-2.5-flash"
+            self.model_name = os.getenv("GOOGLE_MODEL", "gemini-2.5-flash")
             # genai.configure(api_key=self.google_api_key) # Old SDK
             # self.model = genai.GenerativeModel(self.model_name)
             self.client = genai.Client(api_key=self.google_api_key)
         else:
-            if not self.model_name:
-                self.model_name = "gpt-4o-mini"
-            self.client = OpenAI(api_key=self.openai_api_key)
+            self.model_name = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
+            self.client = OpenAI(
+                api_key=self.openai_api_key, base_url=self.openai_base_url
+            )
 
     def extract_structure(self, text: str) -> Dict[str, Any]:
         prompt = f"""
@@ -73,6 +72,8 @@ class LLMGatewayImpl(LLMGateway):
         return self._call_llm_json(prompt)
 
     def _call_llm_json(self, prompt: str) -> Dict[str, Any]:
+        import time
+
         # Removed try-except to allow exceptions (e.g. Rate Limit) to propagate
         if self.provider == "google":
             from google.genai import types
@@ -84,11 +85,14 @@ class LLMGatewayImpl(LLMGateway):
                     response_mime_type="application/json"
                 ),
             )
-            return json.loads(response.text)
+            result = json.loads(response.text)
         else:
             response = self.client.chat.completions.create(
                 model=self.model_name,
                 messages=[{"role": "user", "content": prompt}],
                 response_format={"type": "json_object"},
             )
-            return json.loads(response.choices[0].message.content)
+            result = json.loads(response.choices[0].message.content)
+
+        time.sleep(3)  # Rate limit mitigation
+        return result
