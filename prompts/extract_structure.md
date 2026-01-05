@@ -19,6 +19,11 @@
 ### 4. data_relation (データ次元)
 - システムが管理する主要なデータエンティティと、その関係性（親子関係、必須制約など）を記述してください。
 
+### 5. system_action (出力・動作次元)
+- システムが外部に対して行う「出力 (Output)」や「アクション (Action)」を抽出してください。
+- 例: "LED: Red Blink", "Sound: Warning Beep", "Motor: Stop"
+- そのアクションがトリガーされる「条件 (Condition)」や「イベント (Event)」を明記してください。これはDefect 3 (Conflicting Outputs) の検出に必須です。
+
 ## 出力フォーマット (JSON)
 必ず以下のJSONスキーマに従って出力を行ってください。Markdownコードブロックは含めず、純粋なJSONのみを出力してください。
 
@@ -56,6 +61,14 @@
     {
       "entity": "EntityName",
       "constraints": ["Constraint 1"]
+    }
+  ],
+  "system_action": [
+    {
+      "action": "LED_Red_Blink",
+      "trigger": "Event_Critical_Error",
+      "condition": "Error == Critical",
+      "description": "Indicate critical error"
     }
   ]
 }

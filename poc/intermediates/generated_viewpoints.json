@@ -1,0 +1,240 @@
+{
+  "viewpoints": [
+    {
+      "id": "VP_001",
+      "category": "Liveness",
+      "name": "Booting状態からの遷移可能性",
+      "description": "Booting状態から少なくとも1つの遷移先が存在することを検証する。Dead Endがないことを確認。",
+      "priority": "High",
+      "target_states": [
+        "Booting"
+      ]
+    },
+    {
+      "id": "VP_002",
+      "category": "Liveness",
+      "name": "Idle状態からの遷移可能性",
+      "description": "Idle状態から少なくとも1つの遷移先が存在することを検証する。Dead Endがないことを確認。",
+      "priority": "High",
+      "target_states": [
+        "Idle"
+      ]
+    },
+    {
+      "id": "VP_003",
+      "category": "Liveness",
+      "name": "Moving状態からの遷移可能性",
+      "description": "Moving状態から少なくとも1つの遷移先が存在することを検証する。Dead Endがないことを確認。",
+      "priority": "High",
+      "target_states": [
+        "Moving"
+      ]
+    },
+    {
+      "id": "VP_004",
+      "category": "Liveness",
+      "name": "Loading状態からの遷移可能性",
+      "description": "Loading状態から少なくとも1つの遷移先が存在することを検証する。Dead Endがないことを確認。",
+      "priority": "High",
+      "target_states": [
+        "Loading"
+      ]
+    },
+    {
+      "id": "VP_005",
+      "category": "Liveness",
+      "name": "Unloading状態からの遷移可能性",
+      "description": "Unloading状態から少なくとも1つの遷移先が存在することを検証する。Dead Endがないことを確認。",
+      "priority": "High",
+      "target_states": [
+        "Unloading"
+      ]
+    },
+    {
+      "id": "VP_006",
+      "category": "Liveness",
+      "name": "Charging状態からの遷移可能性",
+      "description": "Charging状態から少なくとも1つの遷移先が存在することを検証する。Dead Endがないことを確認。",
+      "priority": "High",
+      "target_states": [
+        "Charging"
+      ]
+    },
+    {
+      "id": "VP_007",
+      "category": "Liveness",
+      "name": "Paused状態からの遷移可能性",
+      "description": "Paused状態から少なくとも1つの遷移先が存在することを検証する。Dead Endがないことを確認。",
+      "priority": "High",
+      "target_states": [
+        "Paused"
+      ]
+    },
+    {
+      "id": "VP_008",
+      "category": "Liveness",
+      "name": "Error状態からの遷移可能性",
+      "description": "Error状態から少なくとも1つの遷移先が存在することを検証する。Dead Endがないことを確認。",
+      "priority": "High",
+      "target_states": [
+        "Error"
+      ]
+    },
+    {
+      "id": "VP_009",
+      "category": "Liveness",
+      "name": "Maintenance状態からの遷移可能性",
+      "description": "Maintenance状態から少なくとも1つの遷移先が存在することを検証する。Dead Endがないことを確認。",
+      "priority": "High",
+      "target_states": [
+        "Maintenance"
+      ]
+    },
+    {
+      "id": "VP_010",
+      "category": "Liveness",
+      "name": "L_Approach状態からの遷移可能性",
+      "description": "L_Approach状態から少なくとも1つの遷移先が存在することを検証する。Dead Endがないことを確認。",
+      "priority": "High",
+      "target_states": [
+        "L_Approach"
+      ]
+    },
+    {
+      "id": "VP_011",
+      "category": "Liveness",
+      "name": "L_Handshake状態からの遷移可能性",
+      "description": "L_Handshake状態から少なくとも1つの遷移先が存在することを検証する。Dead Endがないことを確認。",
+      "priority": "High",
+      "target_states": [
+        "L_Handshake"
+      ]
+    },
+    {
+      "id": "VP_012",
+      "category": "Liveness",
+      "name": "L_Transfer状態からの遷移可能性",
+      "description": "L_Transfer状態から少なくとも1つの遷移先が存在することを検証する。Dead Endがないことを確認。",
+      "priority": "High",
+      "target_states": [
+        "L_Transfer"
+      ]
+    },
+    {
+      "id": "VP_013",
+      "category": "Liveness",
+      "name": "L_Verify状態からの遷移可能性",
+      "description": "L_Verify状態から少なくとも1つの遷移先が存在することを検証する。Dead Endがないことを確認。",
+      "priority": "High",
+      "target_states": [
+        "L_Verify"
+      ]
+    },
+    {
+      "id": "VP_014",
+      "category": "Safety",
+      "name": "ChargingStationの排他制御",
+      "description": "ChargingStationリソースに同時に複数のAGVがアクセスできないことを検証する。Only one AGV may occupy a charging station at a time.; AGV must receive confirmation from FMS that the station is free before transitioning to Charging.",
+      "priority": "High",
+      "target_resources": [
+        "ChargingStation"
+      ]
+    },
+    {
+      "id": "VP_015",
+      "category": "Safety",
+      "name": "IntersectionNodeの排他制御",
+      "description": "IntersectionNodeリソースに同時に複数のAGVがアクセスできないことを検証する。AGV must request exclusive access via REQ_ACQUIRE_RESOURCE before entering.; FMS grants access only if no other AGV holds the resource.",
+      "priority": "High",
+      "target_resources": [
+        "IntersectionNode"
+      ]
+    },
+    {
+      "id": "VP_016",
+      "category": "Safety",
+      "name": "RFIDNodeの排他制御",
+      "description": "RFIDNodeリソースに同時に複数のAGVがアクセスできないことを検証する。Read‑only; multiple AGVs can read the same tag simultaneously.; No exclusive lock required.",
+      "priority": "High",
+      "target_resources": [
+        "RFIDNode"
+      ]
+    },
+    {
+      "id": "VP_017",
+      "category": "Safety",
+      "name": "MotorDriverの排他制御",
+      "description": "MotorDriverリソースに同時に複数のAGVがアクセスできないことを検証する。Exclusive to the owning AGV; no sharing across AGVs.",
+      "priority": "High",
+      "target_resources": [
+        "MotorDriver"
+      ]
+    },
+    {
+      "id": "VP_018",
+      "category": "Safety",
+      "name": "LDS_Distanceガード条件の検証",
+      "description": "LDS_Distanceに関するガード条件(Distance < 1.0m for >= 300ms, Distance > 1.2m for >= 2000ms)が正しく適用されることを検証する。",
+      "priority": "Medium",
+      "target_guards": [
+        "Distance < 1.0m for >= 300ms",
+        "Distance > 1.2m for >= 2000ms"
+      ]
+    },
+    {
+      "id": "VP_019",
+      "category": "Liveness",
+      "name": "Error状態からMaintenanceへの復帰",
+      "description": "Error状態からMaintenance状態への遷移が、条件「Physical switch changed to MANUAL」を満たすとき可能であることを検証する。",
+      "priority": "High",
+      "target_states": [
+        "Error",
+        "Maintenance"
+      ]
+    },
+    {
+      "id": "VP_020",
+      "category": "Liveness",
+      "name": "Error状態からSafeModeへの遷移",
+      "description": "Error状態からSafeMode状態への遷移が、条件「WiFi RSSI < -80dBm AND SOC < 15%」を満たすとき可能であることを検証する。",
+      "priority": "High",
+      "target_states": [
+        "Error",
+        "SafeMode"
+      ]
+    },
+    {
+      "id": "VP_021",
+      "category": "Liveness",
+      "name": "充電完了後のIdle復帰",
+      "description": "Charging状態からIdle状態への遷移が、条件「SOC > 95%」を満たすとき可能であることを検証する。",
+      "priority": "High",
+      "target_states": [
+        "Charging",
+        "Idle"
+      ]
+    },
+    {
+      "id": "VP_022",
+      "category": "Liveness",
+      "name": "障害物検知時のPaused遷移",
+      "description": "Moving状態からPaused状態への遷移が、条件「LDS distance < 1.0m for >= 300ms」を満たすとき可能であることを検証する。",
+      "priority": "High",
+      "target_states": [
+        "Moving",
+        "Paused"
+      ]
+    },
+    {
+      "id": "VP_023",
+      "category": "Liveness",
+      "name": "障害物除去後のMoving復帰",
+      "description": "Paused状態からMoving状態への遷移が、条件「LDS distance > 1.2m for >= 2000ms」を満たすとき可能であることを検証する。",
+      "priority": "High",
+      "target_states": [
+        "Paused",
+        "Moving"
+      ]
+    }
+  ]
+}

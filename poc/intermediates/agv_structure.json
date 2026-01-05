@@ -1,0 +1,420 @@
+{
+  "state_transition": {
+    "states": [
+      "Booting",
+      "Idle",
+      "Moving",
+      "Loading",
+      "Unloading",
+      "Charging",
+      "Paused",
+      "Error",
+      "Maintenance",
+      "SafeMode",
+      "L_Approach",
+      "L_Handshake",
+      "L_Transfer",
+      "L_Verify",
+      "Diagnostic"
+    ],
+    "events": [
+      "Event_Init_Complete",
+      "Event_Transport_Order",
+      "Event_Obstacle_Detected",
+      "Event_Obstacle_Cleared",
+      "Event_Arrived_Pickup",
+      "Event_Load_Complete",
+      "Event_Arrived_Dropoff",
+      "Event_Unload_Complete",
+      "Event_Go_Charge",
+      "Event_Low_Battery",
+      "Event_Charge_Complete",
+      "Event_Critical_Error",
+      "Event_Switch_Manual",
+      "Event_Switch_Auto",
+      "Event_NetLoss_LowBat",
+      "CMD_MOVE",
+      "CMD_PAUSE",
+      "CMD_RESUME",
+      "CMD_TASK_ASSIGN",
+      "CMD_EMERGENCY_STOP",
+      "CMD_CHANGE_MODE",
+      "EVT_POS_UPDATE",
+      "EVT_TASK_RESULT",
+      "REQ_ACQUIRE_RESOURCE",
+      "RES_GRANT_RESOURCE",
+      "REQ_RELEASE_RESOURCE"
+    ],
+    "transitions": [
+      {
+        "src": "Booting",
+        "tgt": "Idle",
+        "event": "Event_Init_Complete",
+        "condition": "All POST diagnostics PASS"
+      },
+      {
+        "src": "Idle",
+        "tgt": "Moving",
+        "event": "Event_Transport_Order",
+        "condition": "Battery SOC > 20% && Current position known"
+      },
+      {
+        "src": "Moving",
+        "tgt": "Paused",
+        "event": "Event_Obstacle_Detected",
+        "condition": "LDS distance < 1.0m for >= 300ms"
+      },
+      {
+        "src": "Paused",
+        "tgt": "Moving",
+        "event": "Event_Obstacle_Cleared",
+        "condition": "LDS distance > 1.2m for >= 2000ms"
+      },
+      {
+        "src": "Moving",
+        "tgt": "Loading",
+        "event": "Event_Arrived_Pickup",
+        "condition": "RFID tag read && Stop position error <= ±10mm"
+      },
+      {
+        "src": "Loading",
+        "tgt": "Moving",
+        "event": "Event_Load_Complete",
+        "condition": "Load sensor == ON"
+      },
+      {
+        "src": "Moving",
+        "tgt": "Unloading",
+        "event": "Event_Arrived_Dropoff",
+        "condition": "Stop position error <= ±10mm"
+      },
+      {
+        "src": "Unloading",
+        "tgt": "Idle",
+        "event": "Event_Unload_Complete",
+        "condition": "Load sensor == OFF"
+      },
+      {
+        "src": "Idle",
+        "tgt": "Charging",
+        "event": "Event_Go_Charge",
+        "condition": "Charging station available (FMS confirmed)"
+      },
+      {
+        "src": "Idle",
+        "tgt": "Charging",
+        "event": "Event_Low_Battery",
+        "condition": "Charging station available (FMS confirmed)"
+      },
+      {
+        "src": "Charging",
+        "tgt": "Idle",
+        "event": "Event_Charge_Complete",
+        "condition": "Battery SOC > 95%"
+      },
+      {
+        "src": "*",
+        "tgt": "Error",
+        "event": "Event_Critical_Error",
+        "condition": "Sensor disconnection OR Communication timeout >= 60s"
+      },
+      {
+        "src": "Error",
+        "tgt": "Maintenance",
+        "event": "Event_Switch_Manual",
+        "condition": "Physical switch changed to MANUAL"
+      },
+      {
+        "src": "Maintenance",
+        "tgt": "Idle",
+        "event": "Event_Switch_Auto",
+        "condition": "Error flags cleared"
+      },
+      {
+        "src": "Error",
+        "tgt": "SafeMode",
+        "event": "Event_NetLoss_LowBat",
+        "condition": "WiFi RSSI < -80dBm && Battery SOC < 15%"
+      },
+      {
+        "src": "Idle",
+        "tgt": "Diagnostic",
+        "event": "Event_Switch_Manual",
+        "condition": "DIP SW_2 ON && Power on with remote Enter button"
+      },
+      {
+        "src": "Diagnostic",
+        "tgt": "Idle",
+        "event": "Event_Switch_Auto",
+        "condition": "Diagnostic session ended"
+      }
+    ]
+  },
+  "resource_concurrency": {
+    "resources": [
+      {
+        "name": "ChargingStation",
+        "description": "Physical charging dock used by multiple AGVs",
+        "access_rules": [
+          "Exclusive occupancy per station",
+          "Allocation granted by FMS based on availability",
+          "Higher priority tasks pre‑empt lower priority if station free"
+        ]
+      },
+      {
+        "name": "Intersection",
+        "description": "Cross‑point of segments where only one AGV may pass at a time",
+        "access_rules": [
+          "Request‑Grant‑Release protocol via FMS",
+          "FIFO order of requests unless task priority overrides"
+        ]
+      },
+      {
+        "name": "LED_Indicator",
+        "description": "Status light shared by all AGVs (per‑unit)",
+        "access_rules": [
+          "Mutually exclusive pattern per AGV (no concurrent patterns)",
+          "Pattern set by state machine or command events"
+        ]
+      },
+      {
+        "name": "MotorPowerRelay",
+        "description": "Relay that supplies power to motor drivers",
+        "access_rules": [
+          "Only one command (Enable/Disable) at a time",
+          "Emergency stop forces immediate disable regardless of other commands"
+        ]
+      }
+    ]
+  },
+  "logic_guard": [
+    {
+      "category": "Battery",
+      "condition": "SOC > 20%",
+      "implication": "Allowed to transition from Idle to Moving"
+    },
+    {
+      "category": "Battery",
+      "condition": "SOC < 20%",
+      "implication": "Trigger Event_Low_Battery, transition to Charging"
+    },
+    {
+      "category": "Battery",
+      "condition": "SOC > 95%",
+      "implication": "Charging complete, transition to Idle"
+    },
+    {
+      "category": "Battery",
+      "condition": "SOC < 15%",
+      "implication": "Enter SafeMode when network lost"
+    },
+    {
+      "category": "Battery",
+      "condition": "SOC < 10%",
+      "implication": "Critical shutdown (not explicitly modeled)"
+    },
+    {
+      "category": "LDS_Distance",
+      "condition": "distance < 1.0m for >= 300ms",
+      "implication": "Transition Moving -> Paused"
+    },
+    {
+      "category": "LDS_Distance",
+      "condition": "distance > 1.2m for >= 2000ms",
+      "implication": "Transition Paused -> Moving"
+    },
+    {
+      "category": "Speed",
+      "condition": "speed > 1.5 m/s",
+      "implication": "Trigger emergency stop within 100ms"
+    },
+    {
+      "category": "SpeedZone",
+      "condition": "0 - 0.3 m/s && obstacle distance <= 1.0m",
+      "implication": "Stop Zone activation"
+    },
+    {
+      "category": "SpeedZone",
+      "condition": "0 - 0.3 m/s && obstacle distance <= 2.0m",
+      "implication": "Slow Zone activation (reduce to <=0.3 m/s)"
+    },
+    {
+      "category": "SpeedZone",
+      "condition": "0.3 - 0.8 m/s && obstacle distance <= 1.0m",
+      "implication": "Stop Zone activation"
+    },
+    {
+      "category": "SpeedZone",
+      "condition": "0.3 - 0.8 m/s && obstacle distance <= 2.0m",
+      "implication": "Slow Zone activation"
+    },
+    {
+      "category": "SpeedZone",
+      "condition": "0.8 - 1.2 m/s && obstacle distance <= 1.5m",
+      "implication": "Stop Zone activation"
+    },
+    {
+      "category": "SpeedZone",
+      "condition": "0.8 - 1.2 m/s && obstacle distance <= 3.0m",
+      "implication": "Slow Zone activation"
+    },
+    {
+      "category": "WiFiSignal",
+      "condition": "RSSI < -80 dBm",
+      "implication": "Part of SafeMode entry condition"
+    },
+    {
+      "category": "Communication",
+      "condition": "Heartbeat timeout >= 60s",
+      "implication": "Transition to Error"
+    }
+  ],
+  "data_relation": [
+    {
+      "entity": "AGV",
+      "constraints": [
+        "Each AGV has exactly one BMS, one LDS, one RFID reader",
+        "AGV reports status via MQTT topics agv/{id}/status",
+        "AGV may be in only one top‑level state at a time"
+      ]
+    },
+    {
+      "entity": "FMS",
+      "constraints": [
+        "Manages fleet-wide resources (ChargingStation, Intersection)",
+        "Sends commands (CMD_*) to AGV via MQTT",
+        "Receives events (EVT_*) from AGV"
+      ]
+    },
+    {
+      "entity": "Node",
+      "constraints": [
+        "Unique integer identifier",
+        "Located at RFID tag position",
+        "Connected to zero or more Segments"
+      ]
+    },
+    {
+      "entity": "Segment",
+      "constraints": [
+        "Defines a path between two Nodes",
+        "Has length and speed limits"
+      ]
+    },
+    {
+      "entity": "Task",
+      "constraints": [
+        "Assigned to exactly one AGV",
+        "Contains pickup_node, dropoff_node, priority (1‑5)",
+        "Lifecycle: Assigned -> Moving -> Loading -> Moving -> Unloading -> Completed"
+      ]
+    },
+    {
+      "entity": "Message",
+      "constraints": [
+        "Header contains msg_id (UUID), timestamp, sender, version",
+        "Body varies per command or event"
+      ]
+    },
+    {
+      "entity": "ErrorCode",
+      "constraints": [
+        "Mapped to severity levels (Warning, Error, Critical, Fatal)",
+        "Reported in EVT_POS_UPDATE as error_code field"
+      ]
+    },
+    {
+      "entity": "LED_Pattern",
+      "constraints": [
+        "Pattern ID uniquely defines color, frequency, meaning",
+        "Only one pattern active per AGV at a time"
+      ]
+    }
+  ],
+  "system_action": [
+    {
+      "action": "LED_GREEN_ON",
+      "trigger": "State_Enter_Idle OR State_Enter_Moving",
+      "condition": "None",
+      "description": "Indicates normal operation / waiting"
+    },
+    {
+      "action": "LED_BLUE_ROTATE",
+      "trigger": "State_Enter_Moving",
+      "condition": "Task assigned and moving",
+      "description": "Shows autonomous task execution"
+    },
+    {
+      "action": "LED_YELLOW_BLINK",
+      "trigger": "State_Enter_Paused",
+      "condition": "Obstacle detected",
+      "description": "Warns operator of temporary stop"
+    },
+    {
+      "action": "LED_RED_BLINK",
+      "trigger": "Event_Critical_Error OR CMD_EMERGENCY_STOP",
+      "condition": "Error level == Critical OR Emergency stop command received",
+      "description": "Critical error indication"
+    },
+    {
+      "action": "LED_RED_ON",
+      "trigger": "State_Enter_Error",
+      "condition": "Fatal error (e.g., CPU exception)",
+      "description": "System shutdown indication"
+    },
+    {
+      "action": "LED_WHITE_PULSE",
+      "trigger": "State_Enter_Charging",
+      "condition": "None",
+      "description": "Charging status indication"
+    },
+    {
+      "action": "LED_PURPLE_BLINK",
+      "trigger": "Communication loss detected",
+      "condition": "WiFi RSSI < -80dBm OR heartbeat timeout",
+      "description": "Offline / lost connection indication"
+    },
+    {
+      "action": "Sound_Warning_Beep",
+      "trigger": "Event_Obstacle_Detected",
+      "condition": "None",
+      "description": "Audible warning for obstacle"
+    },
+    {
+      "action": "Motor_Stop",
+      "trigger": "Event_Obstacle_Detected OR CMD_EMERGENCY_STOP OR Speed > 1.5m/s",
+      "condition": "None",
+      "description": "Brake motor immediately"
+    },
+    {
+      "action": "Motor_Enable",
+      "trigger": "State_Enter_Moving",
+      "condition": "Battery SOC > 20% && No critical error",
+      "description": "Enable drive motors for movement"
+    },
+    {
+      "action": "Relay_MainContactor_Off",
+      "trigger": "EMERGENCY_STOP OR SafeMode entry",
+      "condition": "None",
+      "description": "Cut power to motors for safety"
+    },
+    {
+      "action": "Beacon_Red_Blink",
+      "trigger": "State_Enter_SafeMode",
+      "condition": "None",
+      "description": "Emergency beacon during safe mode"
+    },
+    {
+      "action": "Publish_EVT_POS_UPDATE",
+      "trigger": "Periodic (1s) OR Node transition",
+      "condition": "State == Moving",
+      "description": "Report current position and status to FMS"
+    },
+    {
+      "action": "Publish_EVT_TASK_RESULT",
+      "trigger": "Event_Load_Complete OR Event_Unload_Complete",
+      "condition": "None",
+      "description": "Notify FMS of task progress"
+    }
+  ]
+}

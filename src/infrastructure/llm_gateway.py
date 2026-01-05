@@ -113,5 +113,5 @@ class LLMGatewayImpl(LLMGateway):
             )
             result_text = response.choices[0].message.content
 
-        time.sleep(3)  # Rate limit mitigation
+        # time.sleep(3)  # Rate limit mitigation
         return result_text

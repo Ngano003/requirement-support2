@@ -70,7 +70,10 @@ def main():
 
     # Check if we should reuse existing model (for debugging speedup)
     als_path = INTERMEDIATE_DIR / "holistic_system.als"
+
+    # FORCE REGENERATION for conflict detection test
     if als_path.exists():
+        # if False:
         alloy_code = load_text(als_path)
         print("  (Using existing holistic_system.als)")
     else:
@@ -119,6 +122,21 @@ def main():
     # 3. Analyze Results & Generate Detailed Report
     print("Step 3: Analyzing Verification Results...")
     result = run_alloy_check(str(als_path))
+    print(f"DEBUG: Result keys: {result.keys()}")
+    if "results" in result:
+        print(f"DEBUG: Found {len(result['results'])} command results.")
+        for r in result["results"]:
+            print(
+                f"DEBUG: Command: {r.get('command')}, Status: {r.get('status')}, Msg: {r.get('message')}"
+            )
+    else:
+        print("DEBUG: 'results' key not found in result!")
+        if "error" in result:
+            print(f"DEBUG: Error found: {result['error']}")
+        if "stderr" in result:
+            print(f"DEBUG: Stderr: {result['stderr']}")
+        if "stdout" in result:
+            print(f"DEBUG: Stdout (first 500 chars): {result['stdout'][:500]}")
 
     prompt_analyze_tmpl = load_text(project_root / PROMPT_ANALYZE_HOLISTIC)
 
