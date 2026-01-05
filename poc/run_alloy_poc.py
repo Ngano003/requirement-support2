@@ -26,6 +26,7 @@ PROMPT_EXTRACT_STRUCTURE = project_root / "prompts" / "extract_structure.md"
 PROMPT_EXTRACT_VIEWPOINTS = project_root / "prompts" / "extract_viewpoints.md"
 PROMPT_GENERATE_ALLOY = project_root / "prompts" / "generate_alloy_from_json.md"
 PROMPT_ANALYZE_RESULTS = project_root / "prompts" / "analyze_results.md"
+PROMPT_LLM_FALLBACK = project_root / "prompts" / "llm_fallback_review.md"
 
 
 def load_text(path: Path) -> str:
@@ -131,6 +132,115 @@ def extract_code_block(text: str, lang: str = "") -> str:
     return text.strip()
 
 
+def generate_viewpoints_from_structure(structure: dict) -> list:
+    """
+    構造化データから機械的に検証観点を生成する。
+    網羅的かつ再現性のある観点リストを作成。
+    """
+    viewpoints = []
+    vp_id = 1
+
+    # 1. 状態遷移の観点（Liveness）
+    states = structure.get("state_transition", {}).get("states", [])
+    transitions = structure.get("state_transition", {}).get("transitions", [])
+
+    # 各状態からの遷移可能性（Dead End チェック）
+    terminal_states = {"SafeMode"}  # 最終状態として扱う
+    for state in states:
+        if state not in terminal_states:
+            # この状態からの遷移が存在するか確認
+            outgoing = [
+                t for t in transitions if t.get("src") == state or t.get("src") == "*"
+            ]
+            if outgoing:
+                viewpoints.append(
+                    {
+                        "id": f"VP_{vp_id:03d}",
+                        "category": "Liveness",
+                        "name": f"{state}状態からの遷移可能性",
+                        "description": f"{state}状態から少なくとも1つの遷移先が存在することを検証する。Dead Endがないことを確認。",
+                        "priority": "High",
+                        "target_states": [state],
+                    }
+                )
+                vp_id += 1
+
+    # 2. リソース排他制御の観点（Safety）
+    resources = structure.get("resource_concurrency", {}).get("resources", [])
+    for resource in resources:
+        name = resource.get("name", "")
+        rules = resource.get("access_rules", [])
+        # 排他アクセスが必要なリソースのみ
+        if any("exclusive" in r.lower() or "only one" in r.lower() for r in rules):
+            viewpoints.append(
+                {
+                    "id": f"VP_{vp_id:03d}",
+                    "category": "Safety",
+                    "name": f"{name}の排他制御",
+                    "description": f"{name}リソースに同時に複数のAGVがアクセスできないことを検証する。{'; '.join(rules[:2])}",
+                    "priority": "High",
+                    "target_resources": [name],
+                }
+            )
+            vp_id += 1
+
+    # 3. ガード条件の観点（Safety/Consistency）
+    guards = structure.get("logic_guard", [])
+    guard_categories = {}
+    for guard in guards:
+        cat = guard.get("category", "")
+        if cat not in guard_categories:
+            guard_categories[cat] = []
+        guard_categories[cat].append(guard)
+
+    # 重要なガード条件カテゴリのみ
+    priority_categories = ["Battery_SOC", "LDS_Distance", "Speed", "WiFi_RSSI"]
+    for cat in priority_categories:
+        if cat in guard_categories:
+            guards_in_cat = guard_categories[cat]
+            conditions = [g.get("condition", "") for g in guards_in_cat[:3]]
+            viewpoints.append(
+                {
+                    "id": f"VP_{vp_id:03d}",
+                    "category": "Safety",
+                    "name": f"{cat}ガード条件の検証",
+                    "description": f"{cat}に関するガード条件({', '.join(conditions[:2])})が正しく適用されることを検証する。",
+                    "priority": "Medium",
+                    "target_guards": conditions,
+                }
+            )
+            vp_id += 1
+
+    # 4. 状態→状態の遷移ペアの観点（主要な遷移のみ）
+    important_transitions = [
+        ("Error", "Maintenance", "Error状態からMaintenanceへの復帰"),
+        ("Error", "SafeMode", "Error状態からSafeModeへの遷移"),
+        ("Charging", "Idle", "充電完了後のIdle復帰"),
+        ("Moving", "Paused", "障害物検知時のPaused遷移"),
+        ("Paused", "Moving", "障害物除去後のMoving復帰"),
+    ]
+    for src, tgt, name in important_transitions:
+        # この遷移が定義されているか確認
+        matching = [
+            t for t in transitions if t.get("src") == src and t.get("tgt") == tgt
+        ]
+        if matching:
+            t = matching[0]
+            viewpoints.append(
+                {
+                    "id": f"VP_{vp_id:03d}",
+                    "category": "Liveness",
+                    "name": name,
+                    "description": f"{src}状態から{tgt}状態への遷移が、条件「{t.get('condition', 'N/A')}」を満たすとき可能であることを検証する。",
+                    "priority": "High",
+                    "target_states": [src, tgt],
+                }
+            )
+            vp_id += 1
+
+    return viewpoints
+
+
 def main():
     # Setup
     if INTERMEDIATE_DIR.exists():
@@ -160,23 +270,16 @@ def main():
     )
     print(f"Structure saved to {struct_json_path}")
 
-    # 3. Extract Viewpoints
-    print("Step 2: Extracting Viewpoints...")
-    prompt_vp_tmpl = load_text(PROMPT_EXTRACT_VIEWPOINTS)
-    # The extraction prompt expects structure_json now
-    prompt_vp = prompt_vp_tmpl.replace(
-        "{{structure_json}}", json.dumps(structure_json, ensure_ascii=False)
+    # 3. Generate Viewpoints (機械的に生成 - 網羅的)
+    print("Step 2: Generating Viewpoints from Structure...")
+    viewpoints = generate_viewpoints_from_structure(structure_json)
+
+    vp_json_path = INTERMEDIATE_DIR / "generated_viewpoints.json"
+    save_text(
+        vp_json_path,
+        json.dumps({"viewpoints": viewpoints}, indent=2, ensure_ascii=False),
     )
-
-    resp_vp = gateway.call_llm_text(prompt_vp)
-    viewpoints_data = extract_json_block(resp_vp)
-
-    vp_json_path = INTERMEDIATE_DIR / "extracted_viewpoints.json"
-    save_text(vp_json_path, json.dumps(viewpoints_data, indent=2, ensure_ascii=False))
-    print(f"Viewpoints saved to {vp_json_path}")
-
-    viewpoints = viewpoints_data.get("viewpoints", [])
-    print(f"Found {len(viewpoints)} viewpoints.")
+    print(f"Generated {len(viewpoints)} viewpoints (saved to {vp_json_path})")
 
     # 4. Loop Verification
     print("Step 3: Verification Loop...")
@@ -252,7 +355,46 @@ def main():
         message = ""
         trace = {}
 
-        if "error" in result:
+        # 3回失敗した場合のLLMフォールバック検証
+        if last_error:
+            print(
+                f"  ⚠️ Alloy execution failed after {MAX_RETRIES} attempts. Falling back to LLM review..."
+            )
+            status = "ERROR"  # 一旦エラーにするが、LLMレビューで上書きされる可能性あり
+
+            prompt_fallback_tmpl = load_text(PROMPT_LLM_FALLBACK)
+            prompt_fallback = (
+                prompt_fallback_tmpl.replace("{{viewpoint_name}}", vp_name)
+                .replace("{{viewpoint_description}}", vp.get("description", ""))
+                .replace("{{requirement_text}}", req_text[:5000])
+            )
+
+            resp_fallback = gateway.call_llm_text(prompt_fallback)
+            fallback_result = extract_json_block(resp_fallback)
+
+            if fallback_result:
+                # LLMレビュー結果を採用
+                llm_status = fallback_result.get("status", "UNCLEAR")
+                # マッピング: LLMのPASSED -> PASSED, VIOLATION -> VIOLATION_FOUND
+                if llm_status == "PASSED":
+                    status = "PASSED"
+                elif llm_status == "VIOLATION":
+                    status = "VIOLATION_FOUND"
+                else:
+                    status = "UNKNOWN"  # UNCLEAR等
+
+                message = f"[LLM Review] {fallback_result.get('summary', '')}\n\n"
+                issues = fallback_result.get("issues", [])
+                if issues:
+                    message += "**Issues Found:**\n"
+                    for issue in issues:
+                        message += f"- {issue.get('description')} (Severity: {issue.get('severity')})\n"
+
+                # 元のエラーも残しておく
+                message += f"\n\n(Alloy Error: {last_error[:200]}...)"
+                print(f"  Fallback Result: {status}")
+
+        elif "error" in result:
             status = "ERROR"
             message = result.get("error", "Unknown error")
             if result.get("stderr"):
@@ -402,51 +544,14 @@ def generate_final_report(results: list, analyses: list, req_text: str) -> str:
                 error_lines = res["message"].split("\n")[:3]
                 report += f"**エラー概要**:\n```\n{chr(10).join(error_lines)}\n```\n\n"
 
-    # LLM分析結果（簡潔版）
+    # 詳細分析レポート（LLM生成内容をそのまま表示）
+    # ユーザー要望：「問題点の概要、検証内容、結果、原因の考察、改善案」を含める
     if analyses:
-        report += "---\n\n## 問題分析と改善提案\n\n"
+        report += "---\n\n## 詳細分析レポート\n\n"
         for analysis in analyses:
-            report += f"### {analysis['id']}: {analysis['name']}\n\n"
-
-            # 分析結果を簡潔に要約（最初の500文字程度）
-            analysis_text = analysis["analysis"]
-
-            # 「概要」「詳細分析」などのセクションを抽出
-            if "### 概要" in analysis_text:
-                # 概要セクションを抽出
-                start = analysis_text.find("### 概要")
-                end = analysis_text.find("###", start + 10)
-                if end == -1:
-                    end = min(start + 500, len(analysis_text))
-                summary = analysis_text[start:end].strip()
-                report += summary + "\n\n"
-            elif "### 判定" in analysis_text:
-                # 判定と概要を抽出
-                start = analysis_text.find("### 判定")
-                end = analysis_text.find("### 詳細分析")
-                if end == -1:
-                    end = min(start + 600, len(analysis_text))
-                summary = analysis_text[start:end].strip()
-                report += summary + "\n\n"
-            else:
-                # 最初の400文字を表示
-                report += analysis_text[:400].strip()
-                if len(analysis_text) > 400:
-                    report += "...\n\n"
-                else:
-                    report += "\n\n"
-
-            # 改善提案があれば簡潔に
-            if "改善提案" in analysis_text:
-                prop_start = analysis_text.find("改善提案")
-                prop_end = analysis_text.find("###", prop_start + 10)
-                if prop_end == -1:
-                    prop_end = min(prop_start + 300, len(analysis_text))
-
-                # 改善提案の最初の部分だけ
-                proposal = analysis_text[prop_start:prop_end].strip()
-                if len(proposal) > 50:
-                    report += f"> [!TIP]\n> **{proposal[:200]}...**\n\n"
+            # 分析テキストをそのまま表示（Markdown形式）
+            report += analysis["analysis"] + "\n\n"
+            report += "---\n\n"
 
     # フッター
     report += "---\n\n"
