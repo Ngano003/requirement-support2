@@ -16,3 +16,10 @@ class LLMGateway(ABC):
     @abstractmethod
     def check_text_contradiction(self, text_a: str, text_b: str) -> Dict[str, Any]:
         pass
+
+    @abstractmethod
+    def call_llm_text(self, prompt: str) -> str:
+        """
+        Generic method to call LLM and get a text response.
+        """
+        pass

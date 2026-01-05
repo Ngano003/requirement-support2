@@ -6,12 +6,15 @@ import tempfile
 from typing import Dict, Any, Optional
 
 # 設定: Java環境へのパス
-WORKSPACE_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+# src/alloy/alloy_wrapper.py -> src/alloy -> src -> root
+WORKSPACE_ROOT = os.path.dirname(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+)
 JAVA_BIN = os.path.join(
-    WORKSPACE_ROOT, "alloy_temp", "java_runtime", "jdk-17.0.17+10", "bin", "java.exe"
+    WORKSPACE_ROOT, "java_runtime", "jdk-17.0.17+10", "bin", "java.exe"
 )
 ALLOY_JAR = os.path.join(
-    WORKSPACE_ROOT, "alloy_temp", "alloy", "app", "org.alloytools.alloy.dist.jar"
+    WORKSPACE_ROOT, "alloy", "app", "org.alloytools.alloy.dist.jar"
 )
 
 

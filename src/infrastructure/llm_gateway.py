@@ -71,28 +71,47 @@ class LLMGatewayImpl(LLMGateway):
         """
         return self._call_llm_json(prompt)
 
+    def call_llm_text(self, prompt: str) -> str:
+        return self._call_llm_generic(prompt, output_json=False)
+
     def _call_llm_json(self, prompt: str) -> Dict[str, Any]:
+        try:
+            result_text = self._call_llm_generic(prompt, output_json=True)
+            return json.loads(result_text)
+        except json.JSONDecodeError:
+            # Fallback or error handling
+            # For now, just raise or return empty
+            return {"error": "Failed to parse JSON", "raw_output": result_text}
+
+    def _call_llm_generic(self, prompt: str, output_json: bool = False) -> str:
         import time
 
+        result_text = ""
         # Removed try-except to allow exceptions (e.g. Rate Limit) to propagate
         if self.provider == "google":
             from google.genai import types
 
+            config_args = {}
+            if output_json:
+                config_args["response_mime_type"] = "application/json"
+
             response = self.client.models.generate_content(
                 model=self.model_name,
                 contents=prompt,
-                config=types.GenerateContentConfig(
-                    response_mime_type="application/json"
-                ),
+                config=types.GenerateContentConfig(**config_args),
             )
-            result = json.loads(response.text)
+            result_text = response.text
         else:
+            kwargs = {}
+            if output_json:
+                kwargs["response_format"] = {"type": "json_object"}
+
             response = self.client.chat.completions.create(
                 model=self.model_name,
                 messages=[{"role": "user", "content": prompt}],
-                response_format={"type": "json_object"},
+                **kwargs,
             )
-            result = json.loads(response.choices[0].message.content)
+            result_text = response.choices[0].message.content
 
         time.sleep(3)  # Rate limit mitigation
-        return result
+        return result_text
