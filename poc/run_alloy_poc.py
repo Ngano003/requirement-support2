@@ -16,17 +16,24 @@ from src.alloy.alloy_wrapper import run_alloy_check
 
 def main():
     # Paths
-    req_file_path = project_root / "requirements" / "samples" / "01_dead_end_gate.md"
+    req_file_paths = [
+        project_root / "doc" / "samples" / "01_agv_core_logic.md",
+        project_root / "doc" / "samples" / "02_agv_communication.md",
+        project_root / "doc" / "samples" / "03_agv_hardware_safety.md",
+    ]
     prompt_file_path = project_root / "prompts" / "generate_alloy.md"
-    output_als_path = project_root / "poc" / "01_dead_end_gate.als"
+    output_als_path = project_root / "poc" / "agv_system.als"
 
-    # 1. Load Requirement
-    print("Loading requirement...")
-    if not req_file_path.exists():
-        print(f"Error: {req_file_path} not found.")
-        return
-    with open(req_file_path, "r", encoding="utf-8") as f:
-        req_text = f.read()
+    # 1. Load Requirements
+    print("Loading requirements...")
+    req_text = ""
+    for path in req_file_paths:
+        if not path.exists():
+            print(f"Error: {path} not found.")
+            return
+        print(f"Reading {path.name}...")
+        with open(path, "r", encoding="utf-8") as f:
+            req_text += f.read() + "\n\n"
 
     # 2. Load Prompt
     print("Loading prompt...")
