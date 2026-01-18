@@ -104,13 +104,20 @@ class LLMGatewayImpl(LLMGateway):
                 delay = delay * 2 + random.uniform(0, 1)
         return ""
 
-    def _call_llm_generic(self, prompt: str) -> str:
+    def _call_llm_generic(self, prompt: str, temperature: float = None) -> str:
         if self.provider == "google":
+            from google.genai.types import GenerateContentConfig
 
             def call_google():
+                config = (
+                    GenerateContentConfig(temperature=temperature)
+                    if temperature is not None
+                    else None
+                )
                 response = self.client.models.generate_content(
                     model=self.model_name,
                     contents=prompt,
+                    config=config,
                 )
                 return response.text
 
@@ -118,10 +125,14 @@ class LLMGatewayImpl(LLMGateway):
         else:
 
             def call_openai():
-                response = self.client.chat.completions.create(
-                    model=self.model_name,
-                    messages=[{"role": "user", "content": prompt}],
-                )
+                kwargs = {
+                    "model": self.model_name,
+                    "messages": [{"role": "user", "content": prompt}],
+                }
+                if temperature is not None:
+                    kwargs["temperature"] = temperature
+
+                response = self.client.chat.completions.create(**kwargs)
                 return response.choices[0].message.content
 
             return self._retry_with_backoff(call_openai)
